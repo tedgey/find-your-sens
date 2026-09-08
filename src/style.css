@@ -1,0 +1,116 @@
+:root {
+  --ink: #e8eef5;
+  --muted: #8b98a8;
+  --accent: #b8ff3c;
+  --accent-ink: #0a0f08;
+  --line: rgba(232, 238, 245, 0.12);
+  --surface: rgba(16, 22, 30, 0.9);
+  --surface-2: rgba(22, 30, 40, 0.75);
+  --bg0: #06080c;
+  --bg1: #0b1018;
+  --font-display: 'Oxanium', 'Segoe UI', sans-serif;
+  --font-body: 'Rajdhani', 'Segoe UI', sans-serif;
+  --font-mono: 'Share Tech Mono', ui-monospace, monospace;
+  --shell-pad-x: clamp(1.25rem, 4vw, 3rem);
+
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 500;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--ink);
+  background-color: var(--bg0);
+  background-image:
+    linear-gradient(rgba(184, 255, 60, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(184, 255, 60, 0.03) 1px, transparent 1px),
+    radial-gradient(900px 500px at 85% -10%, rgba(184, 255, 60, 0.08), transparent 55%),
+    radial-gradient(700px 400px at 5% 100%, rgba(60, 140, 255, 0.06), transparent 50%),
+    linear-gradient(165deg, var(--bg0), var(--bg1));
+  background-size:
+    48px 48px,
+    48px 48px,
+    auto,
+    auto,
+    auto;
+  background-attachment: fixed;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  min-width: 320px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  border-radius: 2px;
+  padding: 0.7rem 1.35rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  filter: none;
+}
+
+.btn--ghost:hover {
+  background: var(--surface-2);
+  border-color: rgba(184, 255, 60, 0.35);
+  filter: none;
+}
+
+@media (max-width: 720px) {
+  body::before {
+    content: 'Desktop recommended: pointer lock works best on a computer.';
+    display: block;
+    padding: 0.5rem 1rem;
+    background: #05070a;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+}

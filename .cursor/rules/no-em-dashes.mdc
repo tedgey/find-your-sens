@@ -1,0 +1,10 @@
+---
+description: Never use em dashes in copy or comments
+alwaysApply: true
+---
+
+# No em dashes
+
+Never use the em dash character (`—`) or en dash (`–`) in user-facing copy, UI strings, comments, commit messages, or documentation for this project.
+
+Prefer commas, periods, colons, parentheses, or a normal hyphen (`-`) instead. For numeric ranges, use a hyphen with spaces: `1.2 - 1.4`.
