@@ -13,6 +13,7 @@ ASensPawn::ASensPawn()
 	Camera->SetupAttachment(Root);
 	Camera->SetRelativeLocation(FVector(0.f, 0.f, 64.f));
 	Camera->bUsePawnControlRotation = false;
+	Camera->bConstrainAspectRatio = false;
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
