@@ -1,6 +1,6 @@
 # Find Your Sens (Unreal 3D)
 
-First-person sister of the Vue prototype. Camera stays still during measurement. Felt 90° sets the quoted CS2 sens. Flick / Casual / Micro are consistency checks.
+First-person sister of the Vue prototype. Camera stays still during measurement. Felt 90°, flick, casual, and micro all feed the quoted CS2 pack. Scenarios carry more of the center than the 90° turns alone. Capture is raw, like CS2.
 
 ## Requirements
 
@@ -11,14 +11,14 @@ First-person sister of the Vue prototype. Camera stays still during measurement.
 
 1. Double-click [`FindYourSens.uproject`](FindYourSens.uproject) (or right-click, Generate Visual Studio project files, then open).
 2. Play In Editor. Setup, prep, test, and results are C++ Slate UI (no UMG assets required).
-3. The range is spawned in code around the pawn. Geometry uses engine basic shapes.
+3. The range is a sealed dark box spawned in code around the pawn (engine basic shapes). Prep uses Start test. Setup still uses Continue.
 
 ## Product rules
 
 - Measurement never yaws the camera (we do not have a sensitivity yet).
-- Felt 90° demo is a scripted 90° camera turn, then the view snaps back.
+- Felt 90° demo is a scripted 90° camera turn, then the view snaps back. Left click starts replicate. R replays the demo.
 - Replicate and pointing stages: centered crosshair, pad travel in inches + cm, arm then commit.
-- Quoted pack comes from Felt 90° only. See `2d/src/math/` for the original formulas this module ports.
+- Quoted pack is a confidence-weighted blend: Felt 90° ~40%, flick ~22%, casual ~22%, micro ~16%. Windows Enhance pointer precision is not part of the quote.
 
 ## Layout
 

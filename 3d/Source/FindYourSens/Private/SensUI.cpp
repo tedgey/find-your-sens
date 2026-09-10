@@ -13,6 +13,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Layout/Visibility.h"
 
 namespace
 {
@@ -105,7 +106,7 @@ public:
 	void Construct(const FArguments& InArgs, ASensPlayerController* InPC)
 	{
 		PC = InPC;
-		USensSession* S = PC ? PC->GetSession() : nullptr;
+		USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr;
 		if (S)
 		{
 			DpiText = FText::AsNumber(static_cast<int32>(S->Setup.Dpi));
@@ -136,7 +137,7 @@ public:
 					+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)[Label(TEXT("Find Your Sens"), Ink, 32, TEXT("Bold"))]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
 					[
-						Label(TEXT("We map what your hand thinks a turn should feel like, then quote a CS2 settings pack. The camera stays still while you move; a 90° demo is the only time the view yaws."), Muted, 15)
+						Label(TEXT("We map what your hand thinks a turn or aim move should feel like, then quote a CS2 settings pack from Felt 90°, flick, casual, and micro. The camera stays still while you move; a 90° demo is the only time the view yaws."), Muted, 15)
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
 					[
@@ -244,15 +245,19 @@ TSharedRef<SWidget> MakeSensInfoWidget(ASensPlayerController* PC)
 			+ SScrollBox::Slot().Padding(0, 0, 0, 12)
 			[Label(TEXT("Purpose"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
-			[Label(TEXT("When you intend a turn, how far does your hand actually move? That travel is the source of truth. The camera stays still on purpose so live yaw cannot train you toward a geometric target. A scripted 90° demo is the only time the view yaws, and it does not use your sensitivity."), Muted, 14)]
+			[Label(TEXT("When you intend a turn or a snap, how far does your hand actually move? That travel is the source of truth. The camera stays still on purpose so live yaw cannot train you toward a geometric target. A scripted 90° demo is the only time the view yaws, and it does not use your sensitivity."), Muted, 14)]
 			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
 			[Label(TEXT("What the test includes"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
-			[Label(TEXT("Felt 90° (5): watch a real 90° demo, then copy that mouse travel with a still camera. Inches and cm show pad distance. Flick / Casual / Micro (10 each) are consistency checks on world markers. The view still does not follow the mouse."), Muted, 14)]
+			[Label(TEXT("Felt 90° (5): watch a real 90° demo, then copy that mouse travel with a still camera. Inches and cm show pad distance. Flick / Casual / Micro (10 each): world markers at different turn sizes. All four stages feed the settings pack. The view still does not follow the mouse."), Muted, 14)]
 			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
-			[Label(TEXT("Absolute vs consistency"), Accent, 13, TEXT("Bold"))]
+			[Label(TEXT("How the pack is built"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
-			[Label(TEXT("Only Felt 90° sets the quoted number: sens ≈ 90 / (|counts| × m_yaw) with CS2 m_yaw = 0.022. Pointing stages feed about 30% of confidence, not the pack center."), Muted, 14)]
+			[Label(TEXT("Each round maps intended degrees to mouse counts with CS2 m_yaw = 0.022 (sens ≈ degrees / (|counts| × m_yaw)). Felt 90° is one stage, not the whole quote. Flick, casual, and micro together carry about 60% of the pack center (22% / 22% / 16%); Felt 90° carries about 40%. Messy stages lose influence through confidence. Disagreement widens the range."), Muted, 14)]
+			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
+			[Label(TEXT("Raw input"), Accent, 13, TEXT("Bold"))]
+			+ SScrollBox::Slot()
+			[Label(TEXT("CS2 uses raw mouse. This Unreal test does too (smoothing off, axis sensitivity 1.0). Windows Enhance pointer precision is not asked and does not change the quoted pack."), Muted, 14)]
 			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
 			[Label(TEXT("What this is not"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
@@ -270,7 +275,7 @@ public:
 	void Construct(const FArguments& InArgs, ASensPlayerController* InPC)
 	{
 		PC = InPC;
-		USensSession* S = PC ? PC->GetSession() : nullptr;
+		USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr;
 		const Sens::FGameProfile& Game = Sens::GetGame(S ? S->Setup.GameId : Sens::EGameId::CS2);
 		const int32 Total = S ? S->TotalRounds() : 35;
 		const FString Lede = FString::Printf(
@@ -307,7 +312,7 @@ public:
 							SNew(SVerticalBox)
 							+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("What is Felt 90°?"), Accent, 13, TEXT("Bold"))]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
-							[Label(TEXT("Watch a short demo of a real 90° turn, then copy that mouse travel. The camera stays still while you replicate. You'll see inches and cm for horizontal pad travel. Stop when it feels like you've turned 90°. That distance sets absolute sensitivity. Later stages only check consistency."), Ink, 13)]
+							[Label(TEXT("Watch a short demo of a real 90° turn, then copy that mouse travel. The camera stays still while you replicate. You'll see inches and cm for horizontal pad travel. Stop when it feels like you've turned 90°. That stage is about 40% of the quoted pack, not the whole number."), Ink, 13)]
 						]
 					]
 					+ SHorizontalBox::Slot().FillWidth(1.f)
@@ -315,29 +320,9 @@ public:
 						SNew(SBorder).Padding(14.f).BorderBackgroundColor(FLinearColor(1, 1, 1, 0.04f)).BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox"))
 						[
 							SNew(SVerticalBox)
-							+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Enhance pointer precision"), Accent, 13, TEXT("Bold"))]
+							+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Scenarios and raw input"), Accent, 13, TEXT("Bold"))]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
-							[Label(TEXT("CS2 ignores Windows acceleration (raw input). This Unreal test also aims for raw mouse, so EPP should not change the quoted pack. We still ask so the note on results stays honest."), Ink, 13)]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
-							[
-								SNew(SHorizontalBox)
-								+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
-								[Btn(TEXT("Leave it on"), true, FOnClicked::CreateLambda([this]() {
-									if (USensSession* Sess = PC.IsValid() ? PC->GetSession() : nullptr)
-									{
-										Sess->Setup.EnhancePointerPrecision = Sens::EEnhancePointerPrecision::On;
-									}
-									return FReply::Handled();
-								}))]
-								+ SHorizontalBox::Slot().AutoWidth()
-								[Btn(TEXT("Off for this test"), true, FOnClicked::CreateLambda([this]() {
-									if (USensSession* Sess = PC.IsValid() ? PC->GetSession() : nullptr)
-									{
-										Sess->Setup.EnhancePointerPrecision = Sens::EEnhancePointerPrecision::Off;
-									}
-									return FReply::Handled();
-								}))]
-							]
+							[Label(TEXT("Flick, casual, and micro are world-angle stages. Together they carry about 60% of the pack center. CS2 uses raw mouse, and so does this test, so Windows Enhance pointer precision is not part of the quote."), Ink, 13)]
 						]
 					]
 				]
@@ -364,7 +349,6 @@ TSharedRef<SWidget> MakeSensPrepWidget(ASensPlayerController* PC)
 
 TSharedRef<SWidget> MakeSensTestHudWidget(ASensPlayerController* PC)
 {
-	TWeakObjectPtr<ASensPlayerController> WeakPC(PC);
 	USensSession* S = PC ? PC->GetSession() : nullptr;
 	const Sens::EScenarioId Scenario = S ? S->CurrentScenario() : Sens::EScenarioId::Feel90;
 	const FString Title = Sens::ScenarioLabel(Scenario);
@@ -392,25 +376,17 @@ TSharedRef<SWidget> MakeSensTestHudWidget(ASensPlayerController* PC)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
 		[Label(Directive, Accent, 16, TEXT("Bold"))];
 
-	if (PC && PC->IsFeelDemo())
-	{
-		Root->AddSlot().AutoHeight().Padding(0, 12, 0, 0)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 10, 0)
-			[Btn(TEXT("Replay"), true, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleReplayDemo); }))]
-			+ SHorizontalBox::Slot().AutoWidth()
-			[Btn(TEXT("Start replicate"), false, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleStartReplicate); }))]
-		];
-	}
-
 	if (PC && PC->ShowTravel())
 	{
 		Root->AddSlot().AutoHeight().Padding(0, 16, 0, 0)[Label(Travel, Accent, 22, TEXT("Bold"))];
 		Root->AddSlot().AutoHeight()[Label(Ref, Muted, 12)];
 	}
 
-	return SNew(SBox).HAlign(HAlign_Fill).VAlign(VAlign_Top).Padding(FMargin(24.f, 16.f))
+	return SNew(SBox)
+		.Visibility(EVisibility::HitTestInvisible)
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Top)
+		.Padding(FMargin(24.f, 16.f))
 	[
 		SNew(SBorder).Padding(16.f).BorderBackgroundColor(FLinearColor(0.02f, 0.03f, 0.04f, 0.55f)).BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox"))
 		[Root]
@@ -436,15 +412,15 @@ TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC)
 		+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Per scenario"), Accent, 13, TEXT("Bold"))];
 	for (const Sens::FStageResult& Stage : Rec.StageResults)
 	{
-		const FString Tag = Stage.bIsAbsolute ? TEXT("absolute") : TEXT("consistency");
-		const FString Line = FString::Printf(
+		const FString Tag = FString::Printf(TEXT("pack %d%%"), FMath::RoundToInt(Stage.BlendWeight * 100.0));
+		const FString StageLine = FString::Printf(
 			TEXT("%s [%s]   med %.3f  ·  σ %.3f  ·  %d%%"),
 			*Sens::ScenarioLabel(Stage.Scenario),
 			*Tag,
 			Stage.MedianSens,
 			Stage.StdDev,
 			FMath::RoundToInt(Stage.Confidence * 100.0));
-		Stages->AddSlot().AutoHeight().Padding(0, 6, 0, 0)[Label(Line, Ink, 13)];
+		Stages->AddSlot().AutoHeight().Padding(0, 6, 0, 0)[Label(StageLine, Ink, 13)];
 	}
 
 	TSharedRef<SVerticalBox> Notes = SNew(SVerticalBox);
@@ -464,7 +440,7 @@ TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC)
 	}
 
 	const FString Assume = FString::Printf(
-		TEXT("Assumed FOV setting %.0f (≈ %.1f° horizontal on the %.0fx%.0f arena). Game res %dx%d. eDPI %.1f-%.1f. Enhance pointer precision: %s."),
+		TEXT("Assumed FOV setting %.0f (≈ %.1f° horizontal on the %.0fx%.0f arena). Game res %dx%d. eDPI %.1f-%.1f. Raw mouse capture (CS2-style)."),
 		Rec.FovSetting,
 		Rec.HorizontalFovDeg,
 		Rec.ArenaWidth,
@@ -472,8 +448,7 @@ TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC)
 		Rec.GameResolutionWidth,
 		Rec.GameResolutionHeight,
 		Rec.EDpiRange.Low,
-		Rec.EDpiRange.High,
-		Rec.EnhancePointerPrecision == Sens::EEnhancePointerPrecision::On ? TEXT("on") : TEXT("off"));
+		Rec.EDpiRange.High);
 
 	return SNew(SBorder).Padding(28.f).BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox")).BorderBackgroundColor(Surface)
 	[
@@ -487,7 +462,7 @@ TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC)
 				+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("YOUR SETTINGS PACK"), Accent, 11, TEXT("Bold"))]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)[Label(Game.Name, Ink, 26, TEXT("Bold"))]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)
-				[Label(TEXT("Absolute scale from Felt 90°. Target stages are consistency checks only."), Muted, 14)]
+				[Label(TEXT("Quoted from all four stages. Flick, casual, and micro carry more of the center than Felt 90° alone. Capture is raw, like CS2."), Muted, 14)]
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
