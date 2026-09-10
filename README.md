@@ -7,7 +7,7 @@ This repo holds two prototypes:
 | Folder | What it is |
 | --- | --- |
 | [`2d/`](2d/) | Vue 3 + Vite web app (CS2-first). This is what GitHub Pages deploys. |
-| `3d/` | Unreal Engine first-person sister project (added in follow-up commits on this branch). |
+| [`3d/`](3d/) | Unreal Engine 5.6 first-person sister project. |
 
 Product notes live in [`planning/`](planning/).
 
@@ -31,4 +31,4 @@ In the repository settings, set **Pages** to use **GitHub Actions** as the sourc
 
 ## 3D Unreal prototype
 
-Requires Unreal Engine 5.6. Project files land in `3d/` on this branch.
+Requires Unreal Engine 5.6. See [`3d/README.md`](3d/README.md).
