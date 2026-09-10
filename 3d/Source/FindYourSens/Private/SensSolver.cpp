@@ -150,7 +150,7 @@ FStageResult SummarizeStage(EScenarioId Scenario, const TArray<FRoundRecording>&
 {
 	FStageResult Stage;
 	Stage.Scenario = Scenario;
-	Stage.bIsAbsolute = Scenario == EScenarioId::Feel90;
+	Stage.bIsAbsolute = true;
 
 	TArray<double> SensValues;
 	for (const FRoundRecording& Round : Rounds)
@@ -209,24 +209,20 @@ int32 PickDpiTier(double UserDpi)
 	return Best;
 }
 
-double EppStageWeight(EScenarioId Scenario, bool bEppOn)
+double ScenarioBlendPrior(EScenarioId Scenario)
 {
-	if (!bEppOn)
-	{
-		return 1.0;
-	}
 	switch (Scenario)
 	{
 	case EScenarioId::Feel90:
-		return 1.2;
-	case EScenarioId::Micro:
-		return 1.45;
-	case EScenarioId::Casual:
-		return 1.05;
+		return 0.40;
 	case EScenarioId::Flick:
-		return 0.5;
+		return 0.22;
+	case EScenarioId::Casual:
+		return 0.22;
+	case EScenarioId::Micro:
+		return 0.16;
 	}
-	return 1.0;
+	return 0.0;
 }
 
 static FSensRange BuildRange(double Center, double Std, int32 Decimals, double Widen)
@@ -246,7 +242,6 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 {
 	const FGameProfile& Game = GetGame(Setup.GameId);
 	const double FovSetting = Setup.FovSetting.IsSet() ? Setup.FovSetting.GetValue() : Game.DefaultFovSetting;
-	const bool bEppOn = Setup.EnhancePointerPrecision == EEnhancePointerPrecision::On;
 
 	const EScenarioId Scenarios[] = {
 		EScenarioId::Feel90,
@@ -255,9 +250,8 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 		EScenarioId::Micro};
 
 	FRecommendation Rec;
-	TArray<FStageResult> PointingStages;
-	FStageResult FeelStage;
-	bool bHasFeel = false;
+	TOptional<double> FeelMedian;
+	TArray<double> PointingValues;
 
 	for (EScenarioId Scenario : Scenarios)
 	{
@@ -271,65 +265,89 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 		}
 		FStageResult Stage = SummarizeStage(Scenario, Filtered, Game.YawConstant);
 		Rec.StageResults.Add(Stage);
-		if (Scenario == EScenarioId::Feel90)
+		if (Scenario == EScenarioId::Feel90 && Stage.Estimates.Num() > 0)
 		{
-			FeelStage = Stage;
-			bHasFeel = true;
+			FeelMedian = Stage.MedianSens;
 		}
 		else
 		{
-			PointingStages.Add(Stage);
+			for (const FRoundEstimate& E : Stage.Estimates)
+			{
+				PointingValues.Add(E.ImpliedSens);
+			}
 		}
 	}
 
-	TArray<TPair<double, double>> FeelItems;
-	if (bHasFeel)
-	{
-		for (const FRoundEstimate& Est : FeelStage.Estimates)
-		{
-			FeelItems.Add(TPair<double, double>(
-				Est.ImpliedSens,
-				Est.Weight * (0.25 + 0.75 * FeelStage.Confidence)));
-		}
-	}
-
-	const double BlendedSens = WeightedMedian(FeelItems);
-	TArray<double> AllFeelSens;
-	for (const auto& Item : FeelItems)
-	{
-		AllFeelSens.Add(Item.Key);
-	}
-	const double BlendedStd = StdDev(AllFeelSens);
-
-	TArray<double> PointingValues;
-	for (const FStageResult& Stage : PointingStages)
-	{
-		for (const FRoundEstimate& E : Stage.Estimates)
-		{
-			PointingValues.Add(E.ImpliedSens);
-		}
-	}
 	if (PointingValues.Num() > 0)
 	{
 		Rec.PointingBaselineSens = Median(PointingValues);
 	}
 
-	double FromStages = bHasFeel ? FeelStage.Confidence : 0.0;
-	if (PointingStages.Num() > 0)
+	TArray<double> StageMasses;
+	StageMasses.Init(0.0, Rec.StageResults.Num());
+	double PriorTotal = 0.0;
+	for (const FStageResult& Stage : Rec.StageResults)
 	{
-		double PathConf = 0.0;
-		for (const FStageResult& S : PointingStages)
+		if (Stage.Estimates.Num() > 0)
 		{
-			PathConf += S.Confidence;
+			PriorTotal += ScenarioBlendPrior(Stage.Scenario);
 		}
-		PathConf /= PointingStages.Num();
-		FromStages = 0.7 * FromStages + 0.3 * PathConf;
+	}
+	if (PriorTotal < 1e-9)
+	{
+		PriorTotal = 1.0;
 	}
 
-	// Browser tests haircut EPP. This Unreal capture path uses raw mouse, so skip it.
-	const bool bEppPenaltyApplied = bEppOn && Game.bUsesRawInput && !Setup.bCaptureIsRaw;
-	const double EppFactor = bEppPenaltyApplied ? 0.78 : 1.0;
-	const double OverallConfidence = FromStages * EppFactor;
+	double MassTotal = 0.0;
+	for (int32 I = 0; I < Rec.StageResults.Num(); ++I)
+	{
+		const FStageResult& Stage = Rec.StageResults[I];
+		if (Stage.Estimates.Num() == 0)
+		{
+			continue;
+		}
+		const double Prior = ScenarioBlendPrior(Stage.Scenario) / PriorTotal;
+		const double Mass = Prior * (0.25 + 0.75 * Stage.Confidence);
+		StageMasses[I] = Mass;
+		MassTotal += Mass;
+	}
+	if (MassTotal < 1e-9)
+	{
+		MassTotal = 1.0;
+	}
+
+	double BlendNumer = 0.0;
+	double FromStagesNumer = 0.0;
+	double FromStagesDenom = 0.0;
+	TArray<double> StageCenters;
+	for (int32 I = 0; I < Rec.StageResults.Num(); ++I)
+	{
+		FStageResult& Stage = Rec.StageResults[I];
+		Stage.BlendWeight = StageMasses[I] / MassTotal;
+		if (Stage.Estimates.Num() == 0)
+		{
+			Stage.bIsAbsolute = false;
+			continue;
+		}
+
+		TArray<TPair<double, double>> StageItems;
+		for (const FRoundEstimate& Est : Stage.Estimates)
+		{
+			StageItems.Add(TPair<double, double>(Est.ImpliedSens, Est.Weight));
+		}
+		const double StageCenter = WeightedMedian(StageItems);
+		StageCenters.Add(StageCenter);
+		BlendNumer += StageCenter * StageMasses[I];
+
+		const double Prior = ScenarioBlendPrior(Stage.Scenario);
+		FromStagesNumer += Prior * Stage.Confidence;
+		FromStagesDenom += Prior;
+	}
+
+	const double BlendedSens = BlendNumer / MassTotal;
+	const double BlendedStd = StdDev(StageCenters);
+	const double FromStages = FromStagesDenom > 1e-9 ? FromStagesNumer / FromStagesDenom : 0.0;
+	const double OverallConfidence = FromStages;
 
 	const int32 DpiTier = PickDpiTier(Setup.Dpi);
 	const double OutputDpi = Setup.Dpi;
@@ -337,7 +355,7 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 		BlendedSens,
 		BlendedStd * 0.75,
 		Game.SensDecimals,
-		bEppPenaltyApplied ? 1.25 : 1.0);
+		1.0);
 
 	FSensRange EDpi;
 	EDpi.Low = RoundToDecimals(SensRange.Low * OutputDpi, 1);
@@ -351,7 +369,7 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 			ScaleSensForDpi(SensRange.Center, OutputDpi, DpiTier),
 			ScaleSensForDpi(BlendedStd * 0.75, OutputDpi, DpiTier),
 			Game.SensDecimals,
-			bEppPenaltyApplied ? 1.25 : 1.0);
+			1.0);
 	}
 
 	TOptional<double> VsCurrent;
@@ -361,26 +379,29 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 	}
 
 	Rec.InputNotes.Add(
-		TEXT("Your quoted sensitivity comes from the felt 90° turns. Flick/casual/micro targets check consistency; alone they tend to measure desktop-style screen pointing (~1:1), not CS2 turn feel."));
-	if (Rec.PointingBaselineSens.IsSet())
+		TEXT("Your quoted sensitivity blends Felt 90° with flick, casual, and micro. World markers use the same yaw math as the 90° turns. Scenarios together carry more of the pack center than Felt 90° alone."));
+	if (FeelMedian.IsSet() && Rec.PointingBaselineSens.IsSet())
 	{
-		Rec.InputNotes.Add(FString::Printf(
-			TEXT("Target-stage pointing baseline was ~%.*f (often near geometric 1:1). That is expected and not what we quote."),
-			Game.SensDecimals,
-			Rec.PointingBaselineSens.GetValue()));
+		const double FeelVal = FeelMedian.GetValue();
+		const double PointVal = Rec.PointingBaselineSens.GetValue();
+		if (FeelVal > 1e-6)
+		{
+			const double Ratio = PointVal / FeelVal;
+			if (Ratio < 0.75 || Ratio > 1.25)
+			{
+				Rec.InputNotes.Add(FString::Printf(
+					TEXT("Flick/casual/micro median was ~%.*f while Felt 90° was ~%.*f. The pack is a weighted blend, so disagreement widens the range. Compare in-game before committing."),
+					Game.SensDecimals,
+					PointVal,
+					Game.SensDecimals,
+					FeelVal));
+			}
+		}
 	}
 	if (Setup.bCaptureIsRaw)
 	{
 		Rec.InputNotes.Add(
-			TEXT("This Unreal test captures mouse with smoothing off and axis sensitivity 1.0 (raw-leaning). Enhance pointer precision does not change the quoted confidence the way the browser test does."));
-	}
-	else if (bEppPenaltyApplied)
-	{
-		Rec.InputNotes.Add(FString::Printf(
-			TEXT("%s uses raw input, so Windows Enhance pointer precision does not apply in-game. This capture path may still accelerate fast moves. Overall confidence was reduced from %d%% to %d%% for that mismatch."),
-			*Game.Name,
-			FMath::RoundToInt(FromStages * 100.0),
-			FMath::RoundToInt(OverallConfidence * 100.0)));
+			TEXT("This Unreal test captures mouse with smoothing off and axis sensitivity 1.0, matching CS2 raw input. Windows Enhance pointer precision is not part of the quote."));
 	}
 	if (VsCurrent.IsSet() && (VsCurrent.GetValue() < 0.7 || VsCurrent.GetValue() > 1.4))
 	{
@@ -401,8 +422,6 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 	Rec.SensRange = SensRange;
 	Rec.Confidence = FMath::Clamp(OverallConfidence, 0.0, 1.0);
 	Rec.FromStages = FMath::Clamp(FromStages, 0.0, 1.0);
-	Rec.bEppPenaltyApplied = bEppPenaltyApplied;
-	Rec.EppFactor = EppFactor;
 	Rec.CmPer360 = CmPer360(SensRange.Center, OutputDpi, Game.YawConstant);
 	Rec.EDpiRange = EDpi;
 	Rec.CurrentSens = Setup.CurrentSens;
@@ -414,7 +433,6 @@ FRecommendation RecommendFromRounds(const FSessionSetup& Setup, const TArray<FRo
 	Rec.GameResolutionWidth = Setup.ResolutionWidth;
 	Rec.GameResolutionHeight = Setup.ResolutionHeight;
 	Rec.YawConstant = Game.YawConstant;
-	Rec.EnhancePointerPrecision = Setup.EnhancePointerPrecision;
 	Rec.bUsesRawInput = Game.bUsesRawInput;
 	return Rec;
 }

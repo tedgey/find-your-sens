@@ -34,12 +34,6 @@ enum class EAppStep : uint8
 	Results
 };
 
-enum class EEnhancePointerPrecision : uint8
-{
-	On,
-	Off
-};
-
 enum class EFovMode : uint8
 {
 	Source43,
@@ -65,9 +59,8 @@ struct FSessionSetup
 	TOptional<double> FovSetting;
 	int32 ResolutionWidth = 1920;
 	int32 ResolutionHeight = 1080;
-	EEnhancePointerPrecision EnhancePointerPrecision = EEnhancePointerPrecision::On;
 	TOptional<double> CurrentSens;
-	/** True when this Unreal capture path uses raw mouse (skip EPP haircut). */
+	/** Unreal capture uses raw mouse, matching CS2. */
 	bool bCaptureIsRaw = true;
 };
 
@@ -136,6 +129,8 @@ struct FStageResult
 	double MeanSens = 0.0;
 	double StdDev = 0.0;
 	double Confidence = 0.0;
+	/** Normalized share of the quoted pack (priors x stage confidence). */
+	double BlendWeight = 0.0;
 	bool bIsAbsolute = false;
 };
 
@@ -155,8 +150,6 @@ struct FRecommendation
 	FSensRange SensRange;
 	double Confidence = 0.0;
 	double FromStages = 0.0;
-	bool bEppPenaltyApplied = false;
-	double EppFactor = 1.0;
 	double CmPer360 = 0.0;
 	FSensRange EDpiRange;
 	TArray<FStageResult> StageResults;
@@ -170,7 +163,6 @@ struct FRecommendation
 	int32 GameResolutionWidth = 1920;
 	int32 GameResolutionHeight = 1080;
 	double YawConstant = 0.022;
-	EEnhancePointerPrecision EnhancePointerPrecision = EEnhancePointerPrecision::On;
 	bool bUsesRawInput = true;
 	TArray<FString> InputNotes;
 };
