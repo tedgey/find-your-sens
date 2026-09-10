@@ -46,3 +46,15 @@ Playable loop in PIE once the editor target compiles:
 Session plan matches 2D: 5 + 10 + 10 + 10. Escape during a round disarms and returns Felt 90° to the demo (same idea as losing pointer lock).
 
 Not done: editor compile/PIE on this machine, Valorant and other titles, share/copy pack, in-game check-in.
+
+---
+
+## 2026-09-10: Click-through test, AimLabs box, visible markers
+
+Prep and the in-test flow advance on left click. Setup still uses Continue because of the form. Felt 90° demo no longer needs Replay / Start replicate buttons: after the turn finishes, left click starts replicate, R replays. The test HUD is hit-test invisible so Slate does not eat those clicks.
+
+Default map is `/Engine/Maps/Templates/Template_Default` instead of OpenWorld. [`SensRangeBuilder`](../3d/Source/FindYourSens/Private/SensRangeBuilder.cpp) now spawns a sealed dark box (floor, walls, ceiling, one dim light). Posts, props, fog, and skylight are gone.
+
+Flick / Casual / Micro markers were spawning but never drawing: the sphere component stayed `HiddenInGame`. [`SensTargetActor`](../3d/Source/FindYourSens/Private/SensTargetActor.cpp) now toggles actor and mesh visibility, uses a larger (~45 cm) lime basic-shape sphere.
+
+Not done: PIE on this machine. Results still uses New setup / Retest buttons (those are choices).
