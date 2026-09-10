@@ -40,3 +40,7 @@ FileOpenOrder/
 *.code-workspace
 *-DebugGame.sln
 *-Development.sln
+
+# Unreal "copy this project" folders (created next to 3d/ if you pick a copy instead of in-place)
+/3d 5.6/
+/3d 5.6 */
