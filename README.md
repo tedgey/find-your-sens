@@ -17,3 +17,11 @@ npm run dev
 npm test
 npm run build
 ```
+
+## Deploy
+
+Push to `main` and GitHub Actions will deploy the app to GitHub Pages at:
+
+`https://tedgey.github.io/find-your-sens/`
+
+In the repository settings, set **Pages** to use **GitHub Actions** as the source.
