@@ -1,20 +1,55 @@
 #include "SensHUD.h"
+#include "CanvasItem.h"
 #include "Engine/Canvas.h"
+#include "Engine/Engine.h"
+#include "Engine/Font.h"
 
 ASensHUD::ASensHUD()
 {
 }
 
+void ASensHUD::SetTravel(const FString& InTravel, const FString& InReference, bool bInShowTravel)
+{
+	TravelLine = InTravel;
+	ReferenceLine = InReference;
+	bShowTravel = bInShowTravel;
+}
+
 void ASensHUD::DrawHUD()
 {
 	Super::DrawHUD();
-	if (!bShowCrosshair || !Canvas)
+	if (!Canvas)
 	{
 		return;
 	}
 
 	const float CX = Canvas->ClipX * 0.5f;
 	const float CY = Canvas->ClipY * 0.5f;
+
+	if (bShowTravel && GEngine)
+	{
+		const float TravelY = Canvas->ClipY / 3.f;
+		if (UFont* Large = GEngine->GetLargeFont())
+		{
+			FCanvasTextItem Travel(FVector2D(CX, TravelY), FText::FromString(TravelLine), Large, FLinearColor(0.722f, 1.f, 0.235f));
+			Travel.bCentreX = true;
+			Travel.bCentreY = true;
+			Travel.Scale = FVector2D(1.4f, 1.4f);
+			Canvas->DrawItem(Travel);
+		}
+		if (UFont* Small = GEngine->GetSmallFont())
+		{
+			FCanvasTextItem Ref(FVector2D(CX, TravelY + 22.f), FText::FromString(ReferenceLine), Small, FLinearColor(0.91f, 0.933f, 0.96f, 0.55f));
+			Ref.bCentreX = true;
+			Ref.bCentreY = true;
+			Canvas->DrawItem(Ref);
+		}
+	}
+
+	if (!bShowCrosshair)
+	{
+		return;
+	}
 	const FLinearColor Color = bArmed
 		? FLinearColor(0.722f, 1.f, 0.235f, 1.f)
 		: FLinearColor(0.91f, 0.933f, 0.96f, 1.f);

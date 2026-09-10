@@ -24,3 +24,9 @@ First-person sister of the Vue prototype. Camera stays still during measurement.
 
 - `Source/FindYourSens/` game module (session, solver, pawn, HUD, range)
 - `Config/` mouse smoothing off, mouse axis sensitivity 1.0 (no look-scale)
+- UI is C++ Slate (no UMG `.uasset` widgets), so a blank project can play without Content assets
+- The range is spawned in C++ from engine basic shapes
+
+## Compile
+
+Needs Visual Studio 2022 with the **Desktop development with C++** workload plus Unreal's game development components. Then generate project files from `FindYourSens.uproject` and build `FindYourSensEditor`.

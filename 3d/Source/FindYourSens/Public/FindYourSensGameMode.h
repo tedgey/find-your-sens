@@ -4,6 +4,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "FindYourSensGameMode.generated.h"
 
+class USensSession;
+
 UCLASS()
 class FINDYOURSENS_API AFindYourSensGameMode : public AGameModeBase
 {
@@ -11,4 +13,8 @@ class FINDYOURSENS_API AFindYourSensGameMode : public AGameModeBase
 
 public:
 	AFindYourSensGameMode();
+	virtual void StartPlay() override;
+
+	UPROPERTY()
+	TObjectPtr<USensSession> Session;
 };

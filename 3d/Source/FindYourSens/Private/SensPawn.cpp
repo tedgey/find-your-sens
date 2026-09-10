@@ -17,6 +17,7 @@ ASensPawn::ASensPawn()
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
+	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
 void ASensPawn::Tick(float DeltaTime)

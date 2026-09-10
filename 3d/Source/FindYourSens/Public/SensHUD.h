@@ -16,8 +16,12 @@ public:
 
 	void SetArmed(bool bInArmed) { bArmed = bInArmed; }
 	void SetShowCrosshair(bool bInShow) { bShowCrosshair = bInShow; }
+	void SetTravel(const FString& InTravel, const FString& InReference, bool bInShowTravel);
 
 protected:
 	bool bArmed = false;
 	bool bShowCrosshair = false;
+	bool bShowTravel = false;
+	FString TravelLine;
+	FString ReferenceLine;
 };
