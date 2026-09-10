@@ -58,15 +58,8 @@ FTargetSpec SpawnTarget(EScenarioId Scenario, const FDisplayConfig& Display)
 	return MakeTarget(Offset, Display);
 }
 
-FTargetSpec SpawnWorldTarget(EScenarioId Scenario)
+FTargetSpec SpawnWorldTarget(EScenarioId Scenario, const FDisplayConfig& Display)
 {
-	const FSpawnRange Range = GetScenarioRange(Scenario);
-	const double Magnitude = RandRange(Range.MinAngleDeg, Range.MaxAngleDeg);
-	const double Theta = RandRange(0.0, PI * 2.0);
-	FTargetSpec Spec;
-	Spec.YawDeg = FMath::Cos(Theta) * Magnitude;
-	Spec.PitchDeg = FMath::Sin(Theta) * Magnitude;
-	Spec.OffsetPx = {0.0, 0.0};
-	return Spec;
+	return SpawnTarget(Scenario, Display);
 }
 } // namespace Sens

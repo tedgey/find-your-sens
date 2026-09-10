@@ -2,7 +2,17 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+const FLinearColor OrbGreen(0.1f, 6.f, 0.175f);
+constexpr float OrbScale = 0.7f;
+constexpr float FloorTopCm = 0.f;
+constexpr float CeilingBottomCm = 500.f;
+constexpr float ClearanceCm = 24.f;
+}
 
 ASensTargetActor::ASensTargetActor()
 {
@@ -14,35 +24,72 @@ ASensTargetActor::ASensTargetActor()
 	{
 		Mesh->SetStaticMesh(Sphere.Object);
 	}
-	Mesh->SetWorldScale3D(FVector(0.18f));
+
+	UMaterialInterface* Base = nullptr;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Emissive(
+		TEXT("/Engine/EngineMaterials/EmissiveMeshMaterial.EmissiveMeshMaterial"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Solid(
+		TEXT("/Engine/EngineDebugMaterials/M_SimpleOpaque.M_SimpleOpaque"));
+	if (Emissive.Succeeded())
+	{
+		Base = Emissive.Object;
+	}
+	else if (Solid.Succeeded())
+	{
+		Base = Solid.Object;
+	}
+	if (Base)
+	{
+		if (UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Base, this))
+		{
+			Mid->SetVectorParameterValue(TEXT("Color"), OrbGreen);
+			Mid->SetVectorParameterValue(TEXT("EmissiveColor"), OrbGreen);
+			Mid->SetVectorParameterValue(TEXT("BaseColor"), OrbGreen);
+			Mesh->SetMaterial(0, Mid);
+		}
+		else
+		{
+			Mesh->SetMaterial(0, Base);
+		}
+	}
+
+	Mesh->SetWorldScale3D(FVector(OrbScale));
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Mesh->SetCastShadow(false);
+	SetActorHiddenInGame(true);
 	Mesh->SetHiddenInGame(true);
 }
 
 void ASensTargetActor::PlaceAtAngles(
 	const FVector& Eye,
 	const FRotator& Rest,
-	double YawDeg,
-	double PitchDeg,
+	double& YawDeg,
+	double& PitchDeg,
 	float DistanceCm)
 {
 	const FRotator Offset(static_cast<float>(-PitchDeg), static_cast<float>(YawDeg), 0.f);
 	const FRotator WorldRot = Rest + Offset;
-	const FVector Loc = Eye + WorldRot.RotateVector(FVector::ForwardVector) * DistanceCm;
-	SetActorLocation(Loc);
-	SetVisibleMarker(true);
+	FVector Loc = Eye + WorldRot.RotateVector(FVector::ForwardVector) * DistanceCm;
 
-	if (UMaterialInterface* Base = Mesh->GetMaterial(0))
-	{
-		if (UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Base, this))
-		{
-			Mid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.722f, 1.f, 0.235f));
-			Mesh->SetMaterial(0, Mid);
-		}
-	}
+	const float RadiusCm = OrbScale * 50.f;
+	const float MinZ = FloorTopCm + RadiusCm + ClearanceCm;
+	const float MaxZ = CeilingBottomCm - RadiusCm - ClearanceCm;
+	Loc.Z = FMath::Clamp(Loc.Z, MinZ, MaxZ);
+	SetActorLocation(Loc);
+
+	const FVector Local = Rest.UnrotateVector(Loc - Eye);
+	const float Horiz = FMath::Sqrt(Local.X * Local.X + Local.Y * Local.Y);
+	YawDeg = FMath::RadiansToDegrees(FMath::Atan2(Local.Y, Local.X));
+	PitchDeg = -FMath::RadiansToDegrees(FMath::Atan2(Local.Z, FMath::Max(Horiz, 1.f)));
+
+	SetVisibleMarker(true);
 }
 
 void ASensTargetActor::SetVisibleMarker(bool bVisible)
 {
 	SetActorHiddenInGame(!bVisible);
+	if (Mesh)
+	{
+		Mesh->SetHiddenInGame(!bVisible);
+	}
 }

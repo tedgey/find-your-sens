@@ -27,7 +27,7 @@ public:
 	int32 CompletedRounds() const { return Rounds.Num(); }
 
 	void OpenInfo();
-	void StartPrep();
+	void OpenPrep();
 	void BeginTest();
 	void RecordRound(const Sens::FRoundRecording& PayloadWithoutIds);
 	void Retest();

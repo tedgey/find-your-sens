@@ -30,7 +30,6 @@ public:
 	USensSession* GetSession() const { return Session; }
 
 	void HandleOpenInfo();
-	void HandleStartPrep();
 	void HandleSetupContinue();
 	void HandleStartTest();
 	void HandleBackToSetup();
@@ -51,13 +50,15 @@ protected:
 	void OnClick(const FInputActionValue& Value);
 	void OnMouse(const FInputActionValue& Value);
 	void OnEscape(const FInputActionValue& Value);
+	void OnReplay(const FInputActionValue& Value);
 
 	void RefreshUI();
-	void ShowMenuWidget(TSharedRef<SWidget> Widget);
+	void ShowMenuWidget(TSharedRef<SWidget> Widget, bool bHitTestInvisible = false);
 	void ClearViewportWidget();
 	void EnterMenuInput();
 	void EnterCaptureInput();
 	void ApplyCameraFov();
+	Sens::FDisplayConfig GetDisplayConfig() const;
 	void StartFeelDemo();
 	void ResetMeasurement();
 	void SpawnOrHideTarget();
@@ -81,6 +82,9 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UInputAction> EscapeAction;
+
+	UPROPERTY()
+	TObjectPtr<UInputAction> ReplayAction;
 
 	UPROPERTY()
 	TObjectPtr<ASensTargetActor> TargetActor;

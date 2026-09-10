@@ -13,6 +13,6 @@ struct FSpawnRange
 
 FSpawnRange GetScenarioRange(EScenarioId Scenario);
 FTargetSpec SpawnTarget(EScenarioId Scenario, const FDisplayConfig& Display);
-/** World-space yaw/pitch in the scenario band (no pinhole). */
-FTargetSpec SpawnWorldTarget(EScenarioId Scenario);
+/** World-space yaw/pitch in the scenario band, clamped inside the view. */
+FTargetSpec SpawnWorldTarget(EScenarioId Scenario, const FDisplayConfig& Display);
 }

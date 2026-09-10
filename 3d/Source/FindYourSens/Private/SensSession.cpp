@@ -52,7 +52,7 @@ void USensSession::OpenInfo()
 	Step = Sens::EAppStep::Info;
 }
 
-void USensSession::StartPrep()
+void USensSession::OpenPrep()
 {
 	Step = Sens::EAppStep::Prep;
 }
@@ -96,7 +96,6 @@ void USensSession::Retest()
 	Rounds.Reset();
 	ScenarioIndex = 0;
 	RoundIndex = 0;
-	Step = Sens::EAppStep::Prep;
 }
 
 void USensSession::BackToSetup()

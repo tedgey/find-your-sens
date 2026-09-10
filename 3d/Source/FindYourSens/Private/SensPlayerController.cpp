@@ -16,6 +16,7 @@
 #include "SensTargets.h"
 #include "SensUI.h"
 #include "Widgets/SWeakWidget.h"
+#include "Layout/Visibility.h"
 
 namespace
 {
@@ -54,17 +55,21 @@ void ASensPlayerController::SetupInputComponent()
 	MouseAction->ValueType = EInputActionValueType::Axis2D;
 	EscapeAction = NewObject<UInputAction>(this, TEXT("SensEscape"));
 	EscapeAction->ValueType = EInputActionValueType::Boolean;
+	ReplayAction = NewObject<UInputAction>(this, TEXT("SensReplay"));
+	ReplayAction->ValueType = EInputActionValueType::Boolean;
 
 	Mapping = NewObject<UInputMappingContext>(this, TEXT("SensIMC"));
 	Mapping->MapKey(ClickAction, EKeys::LeftMouseButton);
 	Mapping->MapKey(MouseAction, EKeys::Mouse2D);
 	Mapping->MapKey(EscapeAction, EKeys::Escape);
+	Mapping->MapKey(ReplayAction, EKeys::R);
 
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		EIC->BindAction(ClickAction, ETriggerEvent::Started, this, &ASensPlayerController::OnClick);
 		EIC->BindAction(MouseAction, ETriggerEvent::Triggered, this, &ASensPlayerController::OnMouse);
 		EIC->BindAction(EscapeAction, ETriggerEvent::Started, this, &ASensPlayerController::OnEscape);
+		EIC->BindAction(ReplayAction, ETriggerEvent::Started, this, &ASensPlayerController::OnReplay);
 	}
 
 	if (UEnhancedInputLocalPlayerSubsystem* Sub =
@@ -86,10 +91,10 @@ void ASensPlayerController::InitSession(USensSession* InSession)
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		TargetActor = GetWorld()->SpawnActor<ASensTargetActor>(Params);
 	}
-	if (ASensPawn* Pawn = GetSensPawn())
+	if (ASensPawn* SensPawn = GetSensPawn())
 	{
-		Pawn->SetRestRotation(FRotator(0.f, 0.f, 0.f));
-		Pawn->SetActorLocation(FVector(0.f, 0.f, 96.f));
+		SensPawn->SetRestRotation(FRotator(0.f, 0.f, 0.f));
+		SensPawn->SetActorLocation(FVector(0.f, 0.f, 96.f));
 	}
 	RefreshUI();
 }
@@ -106,9 +111,9 @@ void ASensPlayerController::Tick(float DeltaSeconds)
 		DemoElapsed += DeltaSeconds;
 		const float T = FMath::Clamp(DemoElapsed / DemoDuration, 0.f, 1.f);
 		const float Eased = 1.f - FMath::Square(1.f - T);
-		if (ASensPawn* Pawn = GetSensPawn())
+		if (ASensPawn* SensPawn = GetSensPawn())
 		{
-			Pawn->SetCameraYawOffset(90.f * Eased);
+			SensPawn->SetCameraYawOffset(90.f * Eased);
 		}
 		if (T >= 1.f)
 		{
@@ -132,23 +137,18 @@ void ASensPlayerController::HandleOpenInfo()
 	}
 }
 
-void ASensPlayerController::HandleStartPrep()
+void ASensPlayerController::HandleSetupContinue()
 {
 	if (Session)
 	{
-		Session->StartPrep();
+		Session->OpenPrep();
 		RefreshUI();
 	}
 }
 
-void ASensPlayerController::HandleSetupContinue()
-{
-	HandleStartPrep();
-}
-
 void ASensPlayerController::HandleStartTest()
 {
-	if (!Session)
+	if (!Session || Session->Step == Sens::EAppStep::Test)
 	{
 		return;
 	}
@@ -164,9 +164,9 @@ void ASensPlayerController::HandleBackToSetup()
 	{
 		Session->BackToSetup();
 	}
-	if (ASensPawn* Pawn = GetSensPawn())
+	if (ASensPawn* SensPawn = GetSensPawn())
 	{
-		Pawn->SnapToRest();
+		SensPawn->SnapToRest();
 	}
 	if (TargetActor)
 	{
@@ -180,8 +180,8 @@ void ASensPlayerController::HandleRetest()
 	if (Session)
 	{
 		Session->Retest();
-		RefreshUI();
 	}
+	HandleStartTest();
 }
 
 void ASensPlayerController::HandleReplayDemo()
@@ -192,9 +192,9 @@ void ASensPlayerController::HandleReplayDemo()
 void ASensPlayerController::HandleStartReplicate()
 {
 	FeelPhase = EFeelPhase::Replicate;
-	if (ASensPawn* Pawn = GetSensPawn())
+	if (ASensPawn* SensPawn = GetSensPawn())
 	{
-		Pawn->SnapToRest();
+		SensPawn->SnapToRest();
 	}
 	ResetMeasurement();
 	EnterCaptureInput();
@@ -212,7 +212,7 @@ FString ASensPlayerController::GetHudLine() const
 	{
 		return bDemoPlaying
 			? TEXT("Watch the turn. This is what 90° of yaw looks like.")
-			: TEXT("Demo ready. Press Replay if you want another look, then Start replicate.");
+			: TEXT("Go. Left click to copy that turn. Press R to replay.");
 	}
 	if (!bCapturing)
 	{
@@ -238,13 +238,13 @@ FString ASensPlayerController::GetScenarioHint() const
 	switch (Session->CurrentScenario())
 	{
 	case Sens::EScenarioId::Feel90:
-		return TEXT("First watch a real 90° turn. Then copy that same mouse travel. The camera stays still; stop when it feels like you've turned 90°.");
+		return TEXT("Watch a real 90° turn, then copy that mouse travel. This is one of four stages that feed the pack.");
 	case Sens::EScenarioId::Flick:
-		return TEXT("Consistency check: move as if snapping onto the target in one commit, then click.");
+		return TEXT("Snap onto the world marker in one commit, then click. This stage feeds the quoted pack.");
 	case Sens::EScenarioId::Casual:
-		return TEXT("Consistency check: move as if smoothly placing your crosshair on the target, then click.");
+		return TEXT("Place your crosshair on the world marker smoothly, then click. This stage feeds the quoted pack.");
 	case Sens::EScenarioId::Micro:
-		return TEXT("Consistency check: move as if making a small correction onto the target, then click.");
+		return TEXT("Make a small correction onto the world marker, then click. This stage feeds the quoted pack.");
 	}
 	return TEXT("");
 }
@@ -295,12 +295,20 @@ bool ASensPlayerController::ShowTravel() const
 
 void ASensPlayerController::OnClick(const FInputActionValue& Value)
 {
-	if (!Session || Session->Step != Sens::EAppStep::Test)
+	if (!Session)
+	{
+		return;
+	}
+	if (Session->Step != Sens::EAppStep::Test)
 	{
 		return;
 	}
 	if (IsFeelDemo())
 	{
+		if (!bDemoPlaying)
+		{
+			HandleStartReplicate();
+		}
 		return;
 	}
 	if (!bCapturing)
@@ -360,9 +368,9 @@ void ASensPlayerController::OnEscape(const FInputActionValue& Value)
 	bArmed = false;
 	bCapturing = false;
 	ResetMeasurement();
-	if (ASensPawn* Pawn = GetSensPawn())
+	if (ASensPawn* SensPawn = GetSensPawn())
 	{
-		Pawn->SnapToRest();
+		SensPawn->SnapToRest();
 	}
 	EnterMenuInput();
 	if (Session->CurrentScenario() == Sens::EScenarioId::Feel90)
@@ -372,6 +380,14 @@ void ASensPlayerController::OnEscape(const FInputActionValue& Value)
 	}
 	UpdateHudFlags();
 	RefreshUI();
+}
+
+void ASensPlayerController::OnReplay(const FInputActionValue& Value)
+{
+	if (IsFeelDemo())
+	{
+		HandleReplayDemo();
+	}
 }
 
 void ASensPlayerController::RefreshUI()
@@ -397,7 +413,7 @@ void ASensPlayerController::RefreshUI()
 		ShowMenuWidget(MakeSensPrepWidget(this));
 		break;
 	case Sens::EAppStep::Test:
-		ShowMenuWidget(MakeSensTestHudWidget(this));
+		ShowMenuWidget(MakeSensTestHudWidget(this), true);
 		if (IsFeelDemo())
 		{
 			EnterMenuInput();
@@ -405,9 +421,9 @@ void ASensPlayerController::RefreshUI()
 		break;
 	case Sens::EAppStep::Results:
 		EnterMenuInput();
-		if (ASensPawn* Pawn = GetSensPawn())
+		if (ASensPawn* SensPawn = GetSensPawn())
 		{
-			Pawn->SnapToRest();
+			SensPawn->SnapToRest();
 		}
 		if (TargetActor)
 		{
@@ -418,11 +434,15 @@ void ASensPlayerController::RefreshUI()
 	}
 }
 
-void ASensPlayerController::ShowMenuWidget(TSharedRef<SWidget> Widget)
+void ASensPlayerController::ShowMenuWidget(TSharedRef<SWidget> Widget, bool bHitTestInvisible)
 {
 	ClearViewportWidget();
 	ViewportWidget = Widget;
 	ViewportHost = SNew(SWeakWidget).PossiblyNullContent(ViewportWidget.ToSharedRef());
+	if (bHitTestInvisible)
+	{
+		ViewportHost->SetVisibility(EVisibility::HitTestInvisible);
+	}
 	if (UGameViewportClient* VP = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
 	{
 		VP->AddViewportWidgetContent(ViewportHost.ToSharedRef(), 100);
@@ -462,25 +482,35 @@ void ASensPlayerController::EnterCaptureInput()
 	bCapturing = true;
 }
 
-void ASensPlayerController::ApplyCameraFov()
+Sens::FDisplayConfig ASensPlayerController::GetDisplayConfig() const
 {
-	ASensPawn* Pawn = GetSensPawn();
-	if (!Pawn || !Session || !Pawn->GetCamera())
-	{
-		return;
-	}
-	const Sens::FGameProfile& Game = Sens::GetGame(Session->Setup.GameId);
-	const double FovSetting = Session->Setup.FovSetting.IsSet()
-		? Session->Setup.FovSetting.GetValue()
-		: Game.DefaultFovSetting;
 	FVector2D Size(1920.0, 1080.0);
+	if (Session)
+	{
+		Size.X = Session->Setup.ResolutionWidth;
+		Size.Y = Session->Setup.ResolutionHeight;
+	}
 	if (GEngine && GEngine->GameViewport)
 	{
 		GEngine->GameViewport->GetViewportSize(Size);
 	}
-	const Sens::FDisplayConfig Display =
-		Sens::BuildDisplayConfig(Game, FovSetting, Size.X, Size.Y);
-	Pawn->GetCamera()->SetFieldOfView(static_cast<float>(Display.HorizontalFovDeg));
+	const Sens::FGameProfile& Game = Sens::GetGame(Session ? Session->Setup.GameId : Sens::EGameId::CS2);
+	const double FovSetting = (Session && Session->Setup.FovSetting.IsSet())
+		? Session->Setup.FovSetting.GetValue()
+		: Game.DefaultFovSetting;
+	return Sens::BuildDisplayConfig(Game, FovSetting, Size.X, Size.Y);
+}
+
+void ASensPlayerController::ApplyCameraFov()
+{
+	ASensPawn* SensPawn = GetSensPawn();
+	if (!SensPawn || !SensPawn->GetCamera())
+	{
+		return;
+	}
+	const Sens::FDisplayConfig Display = GetDisplayConfig();
+	SensPawn->GetCamera()->bConstrainAspectRatio = false;
+	SensPawn->GetCamera()->SetFieldOfView(static_cast<float>(Display.HorizontalFovDeg));
 }
 
 void ASensPlayerController::StartFeelDemo()
@@ -490,9 +520,9 @@ void ASensPlayerController::StartFeelDemo()
 	DemoElapsed = 0.f;
 	bArmed = false;
 	ResetMeasurement();
-	if (ASensPawn* Pawn = GetSensPawn())
+	if (ASensPawn* SensPawn = GetSensPawn())
 	{
-		Pawn->SnapToRest();
+		SensPawn->SnapToRest();
 	}
 	if (TargetActor)
 	{
@@ -523,12 +553,12 @@ void ASensPlayerController::SpawnOrHideTarget()
 		CurrentTarget.Reset();
 		return;
 	}
-	CurrentTarget = Sens::SpawnWorldTarget(Session->CurrentScenario());
-	ASensPawn* Pawn = GetSensPawn();
-	const FVector Eye = Pawn && Pawn->GetCamera()
-		? Pawn->GetCamera()->GetComponentLocation()
+	CurrentTarget = Sens::SpawnWorldTarget(Session->CurrentScenario(), GetDisplayConfig());
+	ASensPawn* SensPawn = GetSensPawn();
+	const FVector Eye = SensPawn && SensPawn->GetCamera()
+		? SensPawn->GetCamera()->GetComponentLocation()
 		: GetFocalLocation();
-	const FRotator Rest = Pawn ? Pawn->GetRestRotation() : FRotator::ZeroRotator;
+	const FRotator Rest = SensPawn ? SensPawn->GetRestRotation() : FRotator::ZeroRotator;
 	TargetActor->PlaceAtAngles(
 		Eye,
 		Rest,
@@ -592,9 +622,9 @@ void ASensPlayerController::PrepareCurrentRound()
 	else
 	{
 		FeelPhase = EFeelPhase::Replicate;
-		if (ASensPawn* Pawn = GetSensPawn())
+		if (ASensPawn* SensPawn = GetSensPawn())
 		{
-			Pawn->SnapToRest();
+			SensPawn->SnapToRest();
 		}
 		EnterCaptureInput();
 	}
