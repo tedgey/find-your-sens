@@ -62,8 +62,8 @@ Publish bar for a free web tool is low enough to clear. Monetization / must-use 
 
 ### Highest leverage
 
-1. **In-game check-in**  
-   After results: try the center for one match; was it too slow, too fast, or right? Store that feedback. Without it, you never learn whether Felt 90° predicts real feel.
+1. **In-app closed-loop check-in** (3D first)  
+   After the pack: pick a sens (default center), replay the same stages with live FPS look, then show how close they got to 90° and how Flick / Casual / Micro landed (on-target / close / miss). Diagnostic only; do not rewrite the pack. Real-match feedback (too slow / too fast / right after a game) is later, once this in-app loop exists.
 
 2. **Bridge when far from current**  
    Already flag large ratios. Add a practical intermediate (e.g. halfway toward the pack) so users are less likely to discard the result after one weird session.

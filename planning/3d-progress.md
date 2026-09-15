@@ -58,3 +58,19 @@ Default map is `/Engine/Maps/Templates/Template_Default` instead of OpenWorld. [
 Flick / Casual / Micro markers were spawning but never drawing: the sphere component stayed `HiddenInGame`. [`SensTargetActor`](../3d/Source/FindYourSens/Private/SensTargetActor.cpp) now toggles actor and mesh visibility, uses a larger (~45 cm) lime basic-shape sphere.
 
 Not done: PIE on this machine. Results still uses New setup / Retest buttons (those are choices).
+
+---
+
+## 2026-09-14: Closed-loop check-in after the pack
+
+Optional live validation after the settings pack, 3D only. Product rules: [`find-your-sens-prototype-decisions.md`](./find-your-sens-prototype-decisions.md) §12.
+
+1. Pack results: primary **Test your sensitivity**. New setup and Retest stay as ghost actions.
+2. Picker defaults to pack center. Slider stays in Low-High. Typed values may leave the band.
+3. Same 35-round plan with FPS look at the chosen sens. Camera yaws and pitches only while armed, then snaps to rest. Felt 90° keeps the demo and has no 90° marker. Pad travel is hidden.
+4. Diagnostic report: closeness to 90°, then Flick / Casual / Micro as on-target / close / miss with overshoot vs undershoot. Solver is not re-run. Pack is not rewritten.
+5. **Change sens and go again** returns to the picker with the last typed value. **Retry finding your sens** goes back to setup.
+
+Math lives in [`SensCheckIn.cpp`](../3d/Source/FindYourSens/Private/SensCheckIn.cpp). Automation tests in [`SensCheckInTests.cpp`](../3d/Source/FindYourSens/Private/Tests/SensCheckInTests.cpp).
+
+Still not true: Vue 2D check-in, share/copy pack, Valorant and other titles, real-match too-slow / too-fast feedback, PIE on the machine that originally logged these entries.

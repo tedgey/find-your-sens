@@ -67,6 +67,8 @@ Differentiator: bespoke sens from *their* intended travel, not someone else’s 
 
 ## 4. Prototype flow (as built)
 
+### 2D (Vue)
+
 1. **Setup** (home): game, DPI, resolution, optional FOV, optional current sens. Link to **How it works**.
 2. **Prep**: checklist, Felt 90° explanation, EPP on/off.
 3. **Test** (pointer lock, fullscreen-friendly arena):
@@ -76,7 +78,13 @@ Differentiator: bespoke sens from *their* intended travel, not someone else’s 
    - Micro × 10 (consistency)
 4. **Results**: settings pack + per-scenario table + notes.
 
-Session machine lives in `src/composables/useSession.ts` (steps: `setup` | `info` | `prep` | `test` | `results`). No Vue Router yet.
+Session machine lives in `2d/src/composables/useSession.ts` (steps: `setup` | `info` | `prep` | `test` | `results`). No Vue Router yet. The 2D app stays a still-camera finder. Closed-loop check-in is 3D-only.
+
+### 3D (Unreal): two loops
+
+1. **Blind finder** (same 35-round plan, still camera, arm → move → commit).
+2. **Results pack**, with **Test your sensitivity** as the primary next step. New setup and Retest (blind re-run) stay secondary.
+3. **Optional closed-loop check-in** (see §12). Same 35 rounds, live FPS look at a chosen sens, then a diagnostic report that does not rewrite the pack.
 
 ---
 
@@ -114,8 +122,9 @@ Pointing at a static on-screen mark tends toward **geometric ~1:1 / ~2.4–2.5**
 - Path weight: straighter + fewer late corrections → higher weight.
 - Vertical drift ignored for Felt 90° absolute scale.
 - Pointing baseline still computed/reported; never quoted as the pack center.
+- Unreal Mouse2D +Y is up (CS2 default). Browser `movementY` +Y is down. Orb implied-sens negates Unreal dy so flicking up at an orb above the crosshair matches the 2D solver (+pitch is look down / target below).
 
-Key code: `src/math/solver.ts`, `angles.ts`, `path.ts`, `games.ts`.
+Key code: `src/math/solver.ts`, `angles.ts`, `path.ts`, `games.ts`. C++: `SensSolver.cpp` (`SolverMouseDyFromUnreal`).
 
 ---
 
@@ -190,15 +199,51 @@ Deploy: GitHub Pages via Actions (`README.md`).
 
 ## 10. Open / next (from conversation, not finished)
 
+- Closed-loop check-in in the Unreal prototype (landed in source; see §12). Real-match too-slow / too-fast feedback is later.
 - More games beyond CS2 (Valorant → …).
 - Desktop raw-input path when browser accel remains a ceiling.
 - Accounts / history (v2).
 - Tighten Felt 90° UX further if users still find it mental.
 - Keep validating quoted sens against real in-game feel (user’s ~1.13 was the calibration north star during debugging).
 - README still slightly stale vs current scenario list (Felt 90° + consistency stages).
+- Real-match feedback after the in-app check-in (too slow / too fast / right) is later.
 
 ---
 
 ## 11. One-line status
 
-**Working Vue prototype:** Felt 90° sets absolute CS2 sens; target stages score consistency; dark gamer UI; How it works page; page-level scroll only when needed; no nested panel scrollbars.
+**Working Vue prototype:** Felt 90° plus flick / casual / micro blend a CS2 pack; target stages also score consistency; dark gamer UI; How it works page; page-level scroll only when needed; no nested panel scrollbars.
+
+**Unreal 3D:** same blind still-camera finder through the pack, then an optional live check-in after results (see §12).
+
+---
+
+## 12. Closed-loop check-in (3D, locked)
+
+Interview + plan, Sep 2026. This is **not** a second solver and **not** an aim trainer. The finder stays blind and still. Live aiming exists only after the pack, so the user can see whether the quoted number feels right.
+
+### Flow
+
+1. Pack results: primary CTA **Test your sensitivity**.
+2. Picker: slider + numeric input. Default is pack `SensRange.Center` (the quoted number, not a single-stage median). Slider is clamped to quoted Low-High. Typing may go outside the band.
+3. Same 35-round plan (5 Felt 90° + 10 Flick + 10 Casual + 10 Micro). Same arm → move → commit. Camera yaws and pitches **only while armed**, then snaps to rest. Crosshair stays screen-center (standard FPS look).
+4. Felt 90° still plays the scripted 90° demo, then they replicate with live yaw. **No 90° world marker.** Score stop pose vs 90°. Box walls may give geometric cues; that is accepted for validation.
+5. Diagnostic report: Felt 90° closeness, then Flick / Casual / Micro in bands (on-target / close / miss) plus overshoot vs undershoot. Does **not** re-run the solver or rewrite the pack.
+6. From that report: **Change sens and go again** (back to picker, keep last typed value and the original pack) or **Retry finding your sens** (full restart from setup).
+
+### Scoring (tunable)
+
+- `dYaw = dx * m_yaw * chosenSens`
+- `dPitch = dy * m_pitch * chosenSens` (Unreal Mouse2D +Y looks up, matching CS2 default; `m_pitch = m_yaw = 0.022`)
+- Pitch clamped to about ±89°. Measure **actual camera pose** at commit.
+- Felt 90°: signed error = achieved yaw − 90° (demo is +yaw). Wrong-way turns are misses.
+- Target stages: angular error from camera forward to the orb center. Overshoot = past the target along the rest→target arc.
+- **On-target:** screen-center ray hits the sphere, or Felt |error| ≤ that round’s orb angular radius (~3° with no orb).
+- **Close:** not on-target, angular error ≤ 2× that radius (~6°).
+- **Miss:** everything else.
+
+### Explicit non-goals
+
+- Do not quote a new pack from check-in hits.
+- Do not add tracking, timed scores, or “beat this.”
+- Do not port this loop to the Vue 2D app in this phase.
