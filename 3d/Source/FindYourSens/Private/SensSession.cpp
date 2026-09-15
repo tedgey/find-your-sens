@@ -124,13 +124,20 @@ bool USensSession::IsLiveTest() const
 
 void USensSession::OpenCheckInSelect(bool bResetSensToCenter)
 {
-	if (!Recommendation.IsSet())
-	{
-		return;
-	}
 	if (bResetSensToCenter || CheckInSens <= 0.0)
 	{
-		CheckInSens = Recommendation->SensRange.Center;
+		if (Recommendation.IsSet() && Recommendation->SensRange.Center > 0.0)
+		{
+			CheckInSens = Recommendation->SensRange.Center;
+		}
+		else if (Setup.CurrentSens.IsSet() && Setup.CurrentSens.GetValue() > 0.0)
+		{
+			CheckInSens = Setup.CurrentSens.GetValue();
+		}
+		else if (CheckInSens <= 0.0)
+		{
+			CheckInSens = 1.0;
+		}
 	}
 	CheckInRounds.Reset();
 	CheckInReport.Reset();
@@ -141,7 +148,7 @@ void USensSession::OpenCheckInSelect(bool bResetSensToCenter)
 
 void USensSession::BeginCheckInTest()
 {
-	if (!Recommendation.IsSet() || CheckInSens <= 0.0)
+	if (CheckInSens <= 0.0)
 	{
 		return;
 	}
@@ -184,11 +191,15 @@ void USensSession::RestartCheckInSelect()
 
 void USensSession::BackToPackResults()
 {
+	CheckInRounds.Reset();
+	ScenarioIndex = 0;
+	RoundIndex = 0;
 	if (Recommendation.IsSet())
 	{
-		CheckInRounds.Reset();
-		ScenarioIndex = 0;
-		RoundIndex = 0;
 		Step = Sens::EAppStep::Results;
+	}
+	else
+	{
+		Step = Sens::EAppStep::Setup;
 	}
 }
