@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.6",
+	"Category": "Games",
+	"Description": "Find Your Sens 3D: open-loop intent mapping in a first-person range.",
+	"Modules": [
+		{
+			"Name": "FindYourSens",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
