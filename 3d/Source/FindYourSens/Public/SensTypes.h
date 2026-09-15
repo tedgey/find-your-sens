@@ -31,7 +31,17 @@ enum class EAppStep : uint8
 	Info,
 	Prep,
 	Test,
-	Results
+	Results,
+	CheckInSelect,
+	CheckInTest,
+	CheckInResults
+};
+
+enum class ECheckInBand : uint8
+{
+	OnTarget,
+	Close,
+	Miss
 };
 
 enum class EFovMode : uint8
@@ -189,5 +199,53 @@ inline FString ScenarioLabel(EScenarioId Id)
 	return TEXT("Unknown");
 }
 
+inline FString CheckInBandLabel(ECheckInBand Band)
+{
+	switch (Band)
+	{
+	case ECheckInBand::OnTarget:
+		return TEXT("on-target");
+	case ECheckInBand::Close:
+		return TEXT("close");
+	case ECheckInBand::Miss:
+		return TEXT("miss");
+	}
+	return TEXT("unknown");
+}
+
 constexpr double FeelTurnDeg = 90.0;
+
+struct FCheckInRound
+{
+	EScenarioId Scenario = EScenarioId::Feel90;
+	int32 RoundIndex = 0;
+	TOptional<FTargetSpec> Target;
+	double ChosenSens = 0.0;
+	double AchievedYawDeg = 0.0;
+	double AchievedPitchDeg = 0.0;
+	double SignedErrorDeg = 0.0;
+	double AngularErrorDeg = 0.0;
+	ECheckInBand Band = ECheckInBand::Miss;
+	bool bOvershoot = false;
+	bool bWrongWay = false;
+};
+
+struct FCheckInStageSummary
+{
+	EScenarioId Scenario = EScenarioId::Feel90;
+	int32 Rounds = 0;
+	int32 OnTarget = 0;
+	int32 Close = 0;
+	int32 Miss = 0;
+	int32 Overshoot = 0;
+	int32 Undershoot = 0;
+	double MedianAbsErrorDeg = 0.0;
+};
+
+struct FCheckInReport
+{
+	double ChosenSens = 0.0;
+	TArray<FCheckInStageSummary> Stages;
+	TArray<FString> Notes;
+};
 } // namespace Sens

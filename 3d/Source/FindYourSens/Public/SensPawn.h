@@ -23,6 +23,8 @@ public:
 	FRotator GetRestRotation() const { return RestRotation; }
 
 	void SetCameraYawOffset(float YawDegrees);
+	void SetCameraAimOffset(float YawDegrees, float PitchDegrees);
+	FRotator GetAimOffset() const { return FRotator(AimPitchOffset, AimYawOffset, 0.f); }
 	void SnapToRest();
 
 protected:
@@ -33,4 +35,6 @@ protected:
 	TObjectPtr<UCameraComponent> Camera;
 
 	FRotator RestRotation = FRotator::ZeroRotator;
+	float AimYawOffset = 0.f;
+	float AimPitchOffset = 0.f;
 };

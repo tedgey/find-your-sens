@@ -8,6 +8,7 @@
 #include "Styling/SlateBrush.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -112,10 +113,6 @@ public:
 			DpiText = FText::AsNumber(static_cast<int32>(S->Setup.Dpi));
 			ResWText = FText::AsNumber(S->Setup.ResolutionWidth);
 			ResHText = FText::AsNumber(S->Setup.ResolutionHeight);
-			if (S->Setup.CurrentSens.IsSet())
-			{
-				SensText = FText::AsNumber(S->Setup.CurrentSens.GetValue());
-			}
 			if (S->Setup.FovSetting.IsSet())
 			{
 				FovText = FText::AsNumber(S->Setup.FovSetting.GetValue());
@@ -156,10 +153,6 @@ public:
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
 					[
-						Field(TEXT("Current sensitivity (optional)"), SNew(SEditableTextBox).Text(SensText).HintText(FText::FromString(TEXT("e.g. 1.13"))).OnTextChanged_Lambda([this](const FText& T) { SensText = T; }))
-					]
-					+ SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
-					[
 						SNew(SHorizontalBox)
 						+ SHorizontalBox::Slot().FillWidth(1.f).Padding(0, 0, 8, 0)
 						[Field(TEXT("Resolution width"), SNew(SEditableTextBox).Text(ResWText).OnTextChanged_Lambda([this](const FText& T) { ResWText = T; }))]
@@ -182,12 +175,7 @@ public:
 								}
 								S->Setup.ResolutionWidth = FMath::Max(800, FCString::Atoi(*ResWText.ToString()));
 								S->Setup.ResolutionHeight = FMath::Max(600, FCString::Atoi(*ResHText.ToString()));
-								const FString SensRaw = SensText.ToString().TrimStartAndEnd();
 								S->Setup.CurrentSens.Reset();
-								if (!SensRaw.IsEmpty())
-								{
-									S->Setup.CurrentSens = FCString::Atod(*SensRaw);
-								}
 								const FString FovRaw = FovText.ToString().TrimStartAndEnd();
 								S->Setup.FovSetting.Reset();
 								if (!FovRaw.IsEmpty())
@@ -208,7 +196,6 @@ public:
 private:
 	TWeakObjectPtr<ASensPlayerController> PC;
 	FText DpiText;
-	FText SensText;
 	FText ResWText;
 	FText ResHText;
 	FText FovText;
@@ -245,7 +232,7 @@ TSharedRef<SWidget> MakeSensInfoWidget(ASensPlayerController* PC)
 			+ SScrollBox::Slot().Padding(0, 0, 0, 12)
 			[Label(TEXT("Purpose"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
-			[Label(TEXT("When you intend a turn or a snap, how far does your hand actually move? That travel is the source of truth. The camera stays still on purpose so live yaw cannot train you toward a geometric target. A scripted 90° demo is the only time the view yaws, and it does not use your sensitivity."), Muted, 14)]
+			[Label(TEXT("When you intend a turn or a snap, how far does your hand actually move? That travel is the source of truth. During the blind finder the camera stays still on purpose so live yaw cannot train you toward a geometric target. A scripted 90° demo is the only time the view yaws in that loop, and it does not use your sensitivity."), Muted, 14)]
 			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
 			[Label(TEXT("What the test includes"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
@@ -257,7 +244,11 @@ TSharedRef<SWidget> MakeSensInfoWidget(ASensPlayerController* PC)
 			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
 			[Label(TEXT("Raw input"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
-			[Label(TEXT("CS2 uses raw mouse. This Unreal test does too (smoothing off, axis sensitivity 1.0). Windows Enhance pointer precision is not asked and does not change the quoted pack."), Muted, 14)]
+			[Label(TEXT("CS2 uses raw mouse. This Unreal test does too (smoothing off, axis sensitivity 1.0)."), Muted, 14)]
+			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
+			[Label(TEXT("After the pack"), Accent, 13, TEXT("Bold"))]
+			+ SScrollBox::Slot()
+			[Label(TEXT("The Unreal prototype can then run the same stages with live look at a sensitivity you pick (default: pack center). That check-in scores how close you got to 90° and whether markers were on-target, close, or a miss. It does not rewrite the pack, and it is not aim training."), Muted, 14)]
 			+ SScrollBox::Slot().Padding(0, 16, 0, 8)
 			[Label(TEXT("What this is not"), Accent, 13, TEXT("Bold"))]
 			+ SScrollBox::Slot()
@@ -351,7 +342,10 @@ TSharedRef<SWidget> MakeSensTestHudWidget(ASensPlayerController* PC)
 {
 	USensSession* S = PC ? PC->GetSession() : nullptr;
 	const Sens::EScenarioId Scenario = S ? S->CurrentScenario() : Sens::EScenarioId::Feel90;
-	const FString Title = Sens::ScenarioLabel(Scenario);
+	const bool bCheckIn = S && S->Step == Sens::EAppStep::CheckInTest;
+	const FString Title = bCheckIn
+		? FString::Printf(TEXT("CHECK-IN · %s"), *Sens::ScenarioLabel(Scenario))
+		: Sens::ScenarioLabel(Scenario);
 	const FString RoundLine = S
 		? FString::Printf(TEXT("Round %d / %d"), S->RoundIndex + 1, S->RoundsThisScenario())
 		: TEXT("");
@@ -469,8 +463,10 @@ TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC)
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
 				[Btn(TEXT("New setup"), true, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleBackToSetup); }))]
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+				[Btn(TEXT("Retest"), true, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleRetest); }))]
 				+ SHorizontalBox::Slot().AutoWidth()
-				[Btn(TEXT("Retest"), false, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleRetest); }))]
+				[Btn(TEXT("Test your sensitivity"), false, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleOpenCheckIn); }))]
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
@@ -487,6 +483,244 @@ TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC)
 			+ SScrollBox::Slot()[Stages]
 			+ SScrollBox::Slot().Padding(0, 16, 0, 0)[Label(Assume, Muted, 12)]
 			+ SScrollBox::Slot().Padding(0, 12, 0, 0)[Notes]
+		]
+	];
+}
+
+class SSensCheckInSelect : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SSensCheckInSelect) {}
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, ASensPlayerController* InPC)
+	{
+		PC = InPC;
+		USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr;
+		if (S && S->Recommendation.IsSet())
+		{
+			const Sens::FSensRange& Range = S->Recommendation->SensRange;
+			Low = Range.Low;
+			High = Range.High;
+			if (High <= Low)
+			{
+				High = Low + 0.001;
+			}
+			if (S->CheckInSens <= 0.0)
+			{
+				S->CheckInSens = Range.Center;
+			}
+			SensValue = S->CheckInSens;
+		}
+		SensText = FText::FromString(FString::Printf(TEXT("%.3f"), SensValue));
+
+		const Sens::FGameProfile& Game = Sens::GetGame(S ? S->Setup.GameId : Sens::EGameId::CS2);
+		const FString Band = FString::Printf(TEXT("%.3f - %.3f"), Low, High);
+		const FString Lede = FString::Printf(
+			TEXT("Your pack quoted %s (center %.3f). The slider stays in that band. Type a number to try something outside it. Live look uses this sensitivity; the pack does not change."),
+			*Band,
+			S && S->Recommendation.IsSet() ? S->Recommendation->SensRange.Center : SensValue);
+
+		ChildSlot
+		[
+			SNew(SBorder).Padding(28.f).BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox")).BorderBackgroundColor(Surface)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("TEST YOUR SENSITIVITY"), Accent, 11, TEXT("Bold"))]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)[Label(Game.Name, Ink, 26, TEXT("Bold"))]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 16)[Label(Lede, Muted, 14)]
+				+ SVerticalBox::Slot().AutoHeight()
+				[Label(Game.SensitivityLabel, Muted, 12)]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0, 8, 0, 0)
+				[
+					SNew(SBox).WidthOverride(240.f).MinDesiredHeight(22.f)
+					[
+						SNew(SSlider)
+						.Value_Lambda([this]() { return GetSliderValue(); })
+						.OnValueChanged_Lambda([this](float Value) { OnSliderChanged(Value); })
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0, 12, 0, 0)
+				[
+					SNew(SBox).WidthOverride(240.f)
+					[
+						SNew(SEditableTextBox)
+						.Text_Lambda([this]() { return SensText; })
+						.OnTextChanged(this, &SSensCheckInSelect::OnSensTextChanged)
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 24, 0, 0)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 10, 0)
+					[Btn(TEXT("Back to pack"), true, FOnClicked::CreateLambda([this]() {
+						return Click(PC.Get(), &ASensPlayerController::HandleBackToPackResults);
+					}))]
+					+ SHorizontalBox::Slot().AutoWidth()
+					[Btn(TEXT("Start check-in"), false, FOnClicked::CreateLambda([this]() {
+						CommitSensToSession();
+						return Click(PC.Get(), &ASensPlayerController::HandleStartCheckInTest);
+					}))]
+				]
+			]
+		];
+	}
+
+private:
+	float GetSliderValue() const
+	{
+		const double Span = High - Low;
+		if (Span <= 0.0)
+		{
+			return 0.5f;
+		}
+		return static_cast<float>(FMath::Clamp((SensValue - Low) / Span, 0.0, 1.0));
+	}
+
+	void OnSliderChanged(float Value)
+	{
+		SensValue = Low + static_cast<double>(Value) * (High - Low);
+		SensText = FText::FromString(FString::Printf(TEXT("%.3f"), SensValue));
+		CommitSensToSession();
+	}
+
+	void OnSensTextChanged(const FText& Text)
+	{
+		SensText = Text;
+		const double Parsed = FCString::Atod(*Text.ToString());
+		if (Parsed > 0.0)
+		{
+			SensValue = Parsed;
+			CommitSensToSession();
+		}
+	}
+
+	void CommitSensToSession()
+	{
+		if (USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr)
+		{
+			if (SensValue > 0.0)
+			{
+				S->CheckInSens = SensValue;
+			}
+		}
+	}
+
+	TWeakObjectPtr<ASensPlayerController> PC;
+	double Low = 0.5;
+	double High = 2.0;
+	double SensValue = 1.0;
+	FText SensText;
+};
+
+TSharedRef<SWidget> MakeSensCheckInSelectWidget(ASensPlayerController* PC)
+{
+	return SNew(SSensCheckInSelect, PC);
+}
+
+TSharedRef<SWidget> MakeSensCheckInResultsWidget(ASensPlayerController* PC)
+{
+	TWeakObjectPtr<ASensPlayerController> WeakPC(PC);
+	USensSession* S = PC ? PC->GetSession() : nullptr;
+	if (!S || !S->CheckInReport.IsSet())
+	{
+		return Label(TEXT("No check-in report"), Muted, 14);
+	}
+	const Sens::FCheckInReport& Report = S->CheckInReport.GetValue();
+	const Sens::FGameProfile& Game = Sens::GetGame(S->Setup.GameId);
+	const FString SensLine = FString::Printf(TEXT("tested at %.3f"), Report.ChosenSens);
+	const FString PackNote = S->Recommendation.IsSet()
+		? FString::Printf(TEXT("Pack still quotes %.3f - %.3f (center %.3f). This report does not change it."),
+			S->Recommendation->SensRange.Low,
+			S->Recommendation->SensRange.High,
+			S->Recommendation->SensRange.Center)
+		: TEXT("This report does not change your pack.");
+
+	FString FeelHeadline = TEXT("Felt 90° not run");
+	FString HitHeadline = TEXT("No marker stages");
+	for (const Sens::FCheckInStageSummary& Stage : Report.Stages)
+	{
+		if (Stage.Scenario == Sens::EScenarioId::Feel90)
+		{
+			FeelHeadline = FString::Printf(TEXT("median %.1f° off 90°"), Stage.MedianAbsErrorDeg);
+		}
+	}
+	int32 OnTarget = 0;
+	int32 Close = 0;
+	int32 Miss = 0;
+	int32 MarkerRounds = 0;
+	for (const Sens::FCheckInStageSummary& Stage : Report.Stages)
+	{
+		if (Stage.Scenario == Sens::EScenarioId::Feel90)
+		{
+			continue;
+		}
+		OnTarget += Stage.OnTarget;
+		Close += Stage.Close;
+		Miss += Stage.Miss;
+		MarkerRounds += Stage.Rounds;
+	}
+	if (MarkerRounds > 0)
+	{
+		HitHeadline = FString::Printf(TEXT("%d on-target · %d close · %d miss"), OnTarget, Close, Miss);
+	}
+
+	TSharedRef<SVerticalBox> Stages = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Per scenario"), Accent, 13, TEXT("Bold"))];
+	for (const Sens::FCheckInStageSummary& Stage : Report.Stages)
+	{
+		const FString StageLine = FString::Printf(
+			TEXT("%s   %d on-target  ·  %d close  ·  %d miss  ·  overshoot %d / undershoot %d  ·  med %.1f°"),
+			*Sens::ScenarioLabel(Stage.Scenario),
+			Stage.OnTarget,
+			Stage.Close,
+			Stage.Miss,
+			Stage.Overshoot,
+			Stage.Undershoot,
+			Stage.MedianAbsErrorDeg);
+		Stages->AddSlot().AutoHeight().Padding(0, 6, 0, 0)[Label(StageLine, Ink, 13)];
+	}
+
+	TSharedRef<SVerticalBox> Notes = SNew(SVerticalBox);
+	for (const FString& Note : Report.Notes)
+	{
+		Notes->AddSlot().AutoHeight().Padding(0, 0, 0, 8)[Label(Note, Ink, 13)];
+	}
+
+	return SNew(SBorder).Padding(28.f).BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox")).BorderBackgroundColor(Surface)
+	[
+		SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.f)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("CHECK-IN"), Accent, 11, TEXT("Bold"))]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)[Label(Game.Name, Ink, 26, TEXT("Bold"))]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)[Label(PackNote, Muted, 14)]
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+				[Btn(TEXT("Retry finding your sens"), true, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleBackToSetup); }))]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[Btn(TEXT("Change sens and go again"), false, FOnClicked::CreateLambda([WeakPC]() { return Click(WeakPC.Get(), &ASensPlayerController::HandleRestartCheckInSelect); }))]
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.f)[Label(Game.SensitivityLabel + TEXT("\n") + SensLine, Ink, 18, TEXT("Bold"))]
+			+ SHorizontalBox::Slot().FillWidth(1.2f)[Label(TEXT("Felt 90°\n") + FeelHeadline, Ink, 16, TEXT("Bold"))]
+			+ SHorizontalBox::Slot().FillWidth(1.2f)[Label(TEXT("Markers\n") + HitHeadline, Ink, 16, TEXT("Bold"))]
+		]
+		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0, 16, 0, 0)
+		[
+			SNew(SScrollBox)
+			+ SScrollBox::Slot()[Stages]
+			+ SScrollBox::Slot().Padding(0, 16, 0, 0)[Notes]
 		]
 	];
 }

@@ -7,6 +7,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "SensAngles.h"
+#include "SensCheckIn.h"
 #include "SensGames.h"
 #include "SensHUD.h"
 #include "SensPawn.h"
@@ -102,7 +103,7 @@ void ASensPlayerController::InitSession(USensSession* InSession)
 void ASensPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (!Session || Session->Step != Sens::EAppStep::Test)
+	if (!Session || !Session->IsLiveTest())
 	{
 		return;
 	}
@@ -184,6 +185,76 @@ void ASensPlayerController::HandleRetest()
 	HandleStartTest();
 }
 
+void ASensPlayerController::HandleOpenCheckIn()
+{
+	if (!Session)
+	{
+		return;
+	}
+	Session->OpenCheckInSelect(true);
+	if (ASensPawn* SensPawn = GetSensPawn())
+	{
+		SensPawn->SnapToRest();
+	}
+	if (TargetActor)
+	{
+		TargetActor->SetVisibleMarker(false);
+	}
+	RefreshUI();
+}
+
+void ASensPlayerController::HandleStartCheckInTest()
+{
+	if (!Session || Session->Step != Sens::EAppStep::CheckInSelect)
+	{
+		return;
+	}
+	if (Session->CheckInSens <= 0.0)
+	{
+		return;
+	}
+	Session->BeginCheckInTest();
+	ApplyCameraFov();
+	PrepareCurrentRound();
+	RefreshUI();
+}
+
+void ASensPlayerController::HandleRestartCheckInSelect()
+{
+	if (!Session)
+	{
+		return;
+	}
+	Session->RestartCheckInSelect();
+	if (ASensPawn* SensPawn = GetSensPawn())
+	{
+		SensPawn->SnapToRest();
+	}
+	if (TargetActor)
+	{
+		TargetActor->SetVisibleMarker(false);
+	}
+	RefreshUI();
+}
+
+void ASensPlayerController::HandleBackToPackResults()
+{
+	if (!Session)
+	{
+		return;
+	}
+	Session->BackToPackResults();
+	if (ASensPawn* SensPawn = GetSensPawn())
+	{
+		SensPawn->SnapToRest();
+	}
+	if (TargetActor)
+	{
+		TargetActor->SetVisibleMarker(false);
+	}
+	RefreshUI();
+}
+
 void ASensPlayerController::HandleReplayDemo()
 {
 	StartFeelDemo();
@@ -208,6 +279,7 @@ FString ASensPlayerController::GetHudLine() const
 		return TEXT("");
 	}
 	const bool bFeel = Session->CurrentScenario() == Sens::EScenarioId::Feel90;
+	const bool bCheckIn = IsCheckInTest();
 	if (bFeel && FeelPhase == EFeelPhase::Demo)
 	{
 		return bDemoPlaying
@@ -220,9 +292,21 @@ FString ASensPlayerController::GetHudLine() const
 	}
 	if (!bArmed)
 	{
+		if (bCheckIn)
+		{
+			return bFeel
+				? TEXT("Click once to arm (crosshair turns green), then look to 90° with this sensitivity, then click to commit.")
+				: TEXT("Click once to arm (crosshair turns green), then put the crosshair on the marker, then click to commit.");
+		}
 		return bFeel
 			? TEXT("Click once to arm (crosshair turns green), then sweep like that turn, then click to commit.")
 			: TEXT("Click once to arm (crosshair turns green), then move, then click to commit.");
+	}
+	if (bCheckIn)
+	{
+		return bFeel
+			? TEXT("Armed. Turn until it feels like 90°. The view follows your mouse.")
+			: TEXT("Armed. Put the crosshair on the marker, then click.");
 	}
 	return bFeel
 		? TEXT("Armed. Turn until it feels like 90°. The camera stays still; watch inches and cm on the pad.")
@@ -233,6 +317,21 @@ FString ASensPlayerController::GetScenarioHint() const
 {
 	if (!Session)
 	{
+		return TEXT("");
+	}
+	if (IsCheckInTest())
+	{
+		switch (Session->CurrentScenario())
+		{
+		case Sens::EScenarioId::Feel90:
+			return TEXT("Watch a real 90° turn, then look there with live yaw. We measure how close you stop to 90°.");
+		case Sens::EScenarioId::Flick:
+			return TEXT("Flick the crosshair onto the world marker. Hits are scored. They do not change your pack.");
+		case Sens::EScenarioId::Casual:
+			return TEXT("Place the crosshair on the world marker smoothly. Hits are scored. They do not change your pack.");
+		case Sens::EScenarioId::Micro:
+			return TEXT("Make a small correction onto the world marker. Hits are scored. They do not change your pack.");
+		}
 		return TEXT("");
 	}
 	switch (Session->CurrentScenario())
@@ -276,30 +375,31 @@ FString ASensPlayerController::GetReferenceTravelLine() const
 
 bool ASensPlayerController::IsFeelDemo() const
 {
-	return Session && Session->Step == Sens::EAppStep::Test
+	return Session && Session->IsLiveTest()
 		&& Session->CurrentScenario() == Sens::EScenarioId::Feel90
 		&& FeelPhase == EFeelPhase::Demo;
 }
 
 bool ASensPlayerController::IsFeelReplicate() const
 {
-	return Session && Session->Step == Sens::EAppStep::Test
+	return Session && Session->IsLiveTest()
 		&& Session->CurrentScenario() == Sens::EScenarioId::Feel90
 		&& FeelPhase == EFeelPhase::Replicate;
 }
 
+bool ASensPlayerController::IsCheckInTest() const
+{
+	return Session && Session->Step == Sens::EAppStep::CheckInTest;
+}
+
 bool ASensPlayerController::ShowTravel() const
 {
-	return IsFeelReplicate() && bArmed;
+	return IsFeelReplicate() && bArmed && !IsCheckInTest();
 }
 
 void ASensPlayerController::OnClick(const FInputActionValue& Value)
 {
-	if (!Session)
-	{
-		return;
-	}
-	if (Session->Step != Sens::EAppStep::Test)
+	if (!Session || !Session->IsLiveTest())
 	{
 		return;
 	}
@@ -357,11 +457,28 @@ void ASensPlayerController::OnMouse(const FInputActionValue& Value)
 	Samples.Add(Sample);
 	Net.X += Delta.X;
 	Net.Y += Delta.Y;
+
+	if (!IsCheckInTest())
+	{
+		return;
+	}
+	ASensPawn* SensPawn = GetSensPawn();
+	if (!SensPawn)
+	{
+		return;
+	}
+	const Sens::FGameProfile& Game = Sens::GetGame(Session->Setup.GameId);
+	const FVector2D AimDelta = Sens::MouseToAimDeltaDeg(Delta.X, Delta.Y, Session->CheckInSens, Game.YawConstant);
+	const FRotator Current = SensPawn->GetAimOffset();
+	double Yaw = Current.Yaw;
+	double Pitch = Current.Pitch;
+	Sens::AccumulateAim(Yaw, Pitch, AimDelta.X, AimDelta.Y);
+	SensPawn->SetCameraAimOffset(static_cast<float>(Yaw), static_cast<float>(Pitch));
 }
 
 void ASensPlayerController::OnEscape(const FInputActionValue& Value)
 {
-	if (!Session || Session->Step != Sens::EAppStep::Test)
+	if (!Session || !Session->IsLiveTest())
 	{
 		return;
 	}
@@ -419,6 +536,25 @@ void ASensPlayerController::RefreshUI()
 			EnterMenuInput();
 		}
 		break;
+	case Sens::EAppStep::CheckInSelect:
+		EnterMenuInput();
+		if (ASensPawn* SensPawn = GetSensPawn())
+		{
+			SensPawn->SnapToRest();
+		}
+		if (TargetActor)
+		{
+			TargetActor->SetVisibleMarker(false);
+		}
+		ShowMenuWidget(MakeSensCheckInSelectWidget(this));
+		break;
+	case Sens::EAppStep::CheckInTest:
+		ShowMenuWidget(MakeSensTestHudWidget(this), true);
+		if (IsFeelDemo())
+		{
+			EnterMenuInput();
+		}
+		break;
 	case Sens::EAppStep::Results:
 		EnterMenuInput();
 		if (ASensPawn* SensPawn = GetSensPawn())
@@ -430,6 +566,18 @@ void ASensPlayerController::RefreshUI()
 			TargetActor->SetVisibleMarker(false);
 		}
 		ShowMenuWidget(MakeSensResultsWidget(this));
+		break;
+	case Sens::EAppStep::CheckInResults:
+		EnterMenuInput();
+		if (ASensPawn* SensPawn = GetSensPawn())
+		{
+			SensPawn->SnapToRest();
+		}
+		if (TargetActor)
+		{
+			TargetActor->SetVisibleMarker(false);
+		}
+		ShowMenuWidget(MakeSensCheckInResultsWidget(this));
 		break;
 	}
 }
@@ -573,6 +721,11 @@ void ASensPlayerController::CommitRound()
 	{
 		return;
 	}
+	if (IsCheckInTest())
+	{
+		CommitCheckInRound();
+		return;
+	}
 	FVector2D Size(Session->Setup.ResolutionWidth, Session->Setup.ResolutionHeight);
 	if (GEngine && GEngine->GameViewport)
 	{
@@ -587,7 +740,6 @@ void ASensPlayerController::CommitRound()
 	Recording.ArenaWidth = Size.X;
 	Recording.ArenaHeight = Size.Y;
 
-	const Sens::EScenarioId Prev = Session->CurrentScenario();
 	Session->RecordRound(Recording);
 
 	if (Session->Step == Sens::EAppStep::Results)
@@ -596,14 +748,60 @@ void ASensPlayerController::CommitRound()
 		return;
 	}
 
-	if (Session->CurrentScenario() != Prev || Session->RoundIndex == 0)
+	PrepareCurrentRound();
+	RefreshUI();
+}
+
+void ASensPlayerController::CommitCheckInRound()
+{
+	if (!Session)
 	{
-		PrepareCurrentRound();
+		return;
+	}
+
+	Sens::FCheckInPose Pose;
+	if (ASensPawn* SensPawn = GetSensPawn())
+	{
+		const FRotator Aim = SensPawn->GetAimOffset();
+		Pose.YawDeg = Aim.Yaw;
+		Pose.PitchDeg = Aim.Pitch;
+		Pose.RestForward = SensPawn->GetRestRotation().Vector();
+		if (UCameraComponent* Cam = SensPawn->GetCamera())
+		{
+			Pose.Eye = Cam->GetComponentLocation();
+			Pose.AimForward = Cam->GetForwardVector();
+		}
+	}
+
+	Sens::FCheckInRound Scored;
+	if (Session->CurrentScenario() == Sens::EScenarioId::Feel90)
+	{
+		Scored = Sens::ScoreFeel90Round(Pose, Session->CheckInSens);
 	}
 	else
 	{
-		PrepareCurrentRound();
+		Sens::FCheckInTargetWorld World;
+		if (CurrentTarget.IsSet())
+		{
+			World.Spec = CurrentTarget.GetValue();
+		}
+		if (TargetActor)
+		{
+			World.Center = TargetActor->GetActorLocation();
+			World.RadiusCm = TargetActor->GetOrbRadiusCm();
+		}
+		Scored = Sens::ScoreTargetRound(Pose, World, Session->CheckInSens);
 	}
+
+	Session->RecordCheckInRound(Scored);
+
+	if (Session->Step == Sens::EAppStep::CheckInResults)
+	{
+		RefreshUI();
+		return;
+	}
+
+	PrepareCurrentRound();
 	RefreshUI();
 }
 
@@ -645,7 +843,7 @@ void ASensPlayerController::UpdateHudFlags()
 {
 	if (ASensHUD* HUD = GetSensHUD())
 	{
-		const bool bTest = Session && Session->Step == Sens::EAppStep::Test;
+		const bool bTest = Session && Session->IsLiveTest();
 		HUD->SetShowCrosshair(bTest);
 		HUD->SetArmed(bArmed);
 	}

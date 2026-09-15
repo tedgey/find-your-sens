@@ -36,6 +36,10 @@ public:
 	void HandleRetest();
 	void HandleReplayDemo();
 	void HandleStartReplicate();
+	void HandleOpenCheckIn();
+	void HandleStartCheckInTest();
+	void HandleRestartCheckInSelect();
+	void HandleBackToPackResults();
 
 	FString GetHudLine() const;
 	FString GetScenarioHint() const;
@@ -63,7 +67,9 @@ protected:
 	void ResetMeasurement();
 	void SpawnOrHideTarget();
 	void CommitRound();
+	void CommitCheckInRound();
 	void PrepareCurrentRound();
+	bool IsCheckInTest() const;
 	ASensPawn* GetSensPawn() const;
 	ASensHUD* GetSensHUD() const;
 	void UpdateHudFlags();

@@ -85,6 +85,11 @@ void ASensTargetActor::PlaceAtAngles(
 	SetVisibleMarker(true);
 }
 
+float ASensTargetActor::GetOrbRadiusCm() const
+{
+	return OrbScale * 50.f;
+}
+
 void ASensTargetActor::SetVisibleMarker(bool bVisible)
 {
 	SetActorHiddenInGame(!bVisible);

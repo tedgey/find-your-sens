@@ -1,4 +1,5 @@
 #include "SensSession.h"
+#include "SensCheckIn.h"
 #include "SensSolver.h"
 
 USensSession::USensSession()
@@ -63,6 +64,9 @@ void USensSession::BeginTest()
 	RoundIndex = 0;
 	Rounds.Reset();
 	Recommendation.Reset();
+	CheckInRounds.Reset();
+	CheckInReport.Reset();
+	CheckInSens = 0.0;
 	Step = Sens::EAppStep::Test;
 }
 
@@ -94,6 +98,9 @@ void USensSession::Retest()
 {
 	Recommendation.Reset();
 	Rounds.Reset();
+	CheckInRounds.Reset();
+	CheckInReport.Reset();
+	CheckInSens = 0.0;
 	ScenarioIndex = 0;
 	RoundIndex = 0;
 }
@@ -103,6 +110,85 @@ void USensSession::BackToSetup()
 	Step = Sens::EAppStep::Setup;
 	Recommendation.Reset();
 	Rounds.Reset();
+	CheckInRounds.Reset();
+	CheckInReport.Reset();
+	CheckInSens = 0.0;
 	ScenarioIndex = 0;
 	RoundIndex = 0;
+}
+
+bool USensSession::IsLiveTest() const
+{
+	return Step == Sens::EAppStep::Test || Step == Sens::EAppStep::CheckInTest;
+}
+
+void USensSession::OpenCheckInSelect(bool bResetSensToCenter)
+{
+	if (!Recommendation.IsSet())
+	{
+		return;
+	}
+	if (bResetSensToCenter || CheckInSens <= 0.0)
+	{
+		CheckInSens = Recommendation->SensRange.Center;
+	}
+	CheckInRounds.Reset();
+	CheckInReport.Reset();
+	ScenarioIndex = 0;
+	RoundIndex = 0;
+	Step = Sens::EAppStep::CheckInSelect;
+}
+
+void USensSession::BeginCheckInTest()
+{
+	if (!Recommendation.IsSet() || CheckInSens <= 0.0)
+	{
+		return;
+	}
+	ScenarioIndex = 0;
+	RoundIndex = 0;
+	CheckInRounds.Reset();
+	CheckInReport.Reset();
+	Step = Sens::EAppStep::CheckInTest;
+}
+
+void USensSession::RecordCheckInRound(const Sens::FCheckInRound& PayloadWithoutIds)
+{
+	Sens::FCheckInRound Recording = PayloadWithoutIds;
+	Recording.Scenario = CurrentScenario();
+	Recording.RoundIndex = RoundIndex;
+	Recording.ChosenSens = CheckInSens;
+	CheckInRounds.Add(Recording);
+
+	if (RoundIndex + 1 < RoundsThisScenario())
+	{
+		++RoundIndex;
+		return;
+	}
+
+	if (ScenarioIndex + 1 < Plan().Num())
+	{
+		++ScenarioIndex;
+		RoundIndex = 0;
+		return;
+	}
+
+	CheckInReport = Sens::BuildCheckInReport(CheckInSens, CheckInRounds);
+	Step = Sens::EAppStep::CheckInResults;
+}
+
+void USensSession::RestartCheckInSelect()
+{
+	OpenCheckInSelect(false);
+}
+
+void USensSession::BackToPackResults()
+{
+	if (Recommendation.IsSet())
+	{
+		CheckInRounds.Reset();
+		ScenarioIndex = 0;
+		RoundIndex = 0;
+		Step = Sens::EAppStep::Results;
+	}
 }

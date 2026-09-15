@@ -1,6 +1,6 @@
 # Find Your Sens (Unreal 3D)
 
-First-person sister of the Vue prototype. Camera stays still during measurement. Felt 90°, flick, casual, and micro all feed the quoted CS2 pack. Scenarios carry more of the center than the 90° turns alone. Capture is raw, like CS2.
+First-person sister of the Vue prototype. Blind finder: camera stays still during measurement. Felt 90°, flick, casual, and micro all feed the quoted CS2 pack. After the pack you can test a chosen sensitivity with live look. Capture is raw, like CS2.
 
 ## Requirements
 
@@ -15,10 +15,11 @@ First-person sister of the Vue prototype. Camera stays still during measurement.
 
 ## Product rules
 
-- Measurement never yaws the camera (we do not have a sensitivity yet).
+- Blind measurement never yaws the camera (we do not have a sensitivity yet).
 - Felt 90° demo is a scripted 90° camera turn, then the view snaps back. Left click starts replicate. R replays the demo.
 - Replicate and pointing stages: centered crosshair, pad travel in inches + cm, arm then commit.
 - Quoted pack is a confidence-weighted blend: Felt 90° ~40%, flick ~22%, casual ~22%, micro ~16%. Windows Enhance pointer precision is not part of the quote.
+- After results, **Test your sensitivity** replays the same stages with live FPS look at a chosen sens (default: pack center). That report is diagnostic. It does not rewrite the pack.
 
 ## Layout
 

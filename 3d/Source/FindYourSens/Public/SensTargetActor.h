@@ -16,6 +16,7 @@ public:
 
 	void PlaceAtAngles(const FVector& Eye, const FRotator& Rest, double& YawDeg, double& PitchDeg, float DistanceCm);
 	void SetVisibleMarker(bool bVisible);
+	float GetOrbRadiusCm() const;
 
 protected:
 	UPROPERTY(VisibleAnywhere)

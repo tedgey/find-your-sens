@@ -10,3 +10,5 @@ TSharedRef<SWidget> MakeSensInfoWidget(ASensPlayerController* PC);
 TSharedRef<SWidget> MakeSensPrepWidget(ASensPlayerController* PC);
 TSharedRef<SWidget> MakeSensTestHudWidget(ASensPlayerController* PC);
 TSharedRef<SWidget> MakeSensResultsWidget(ASensPlayerController* PC);
+TSharedRef<SWidget> MakeSensCheckInSelectWidget(ASensPlayerController* PC);
+TSharedRef<SWidget> MakeSensCheckInResultsWidget(ASensPlayerController* PC);
