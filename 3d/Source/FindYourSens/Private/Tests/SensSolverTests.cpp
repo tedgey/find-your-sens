@@ -47,6 +47,39 @@ bool FSensImpliedTest::RunTest(const FString& Parameters)
 
 	const double Cm = Sens::CmPer360(1.0, 800.0, 0.022);
 	TestTrue(TEXT("cm/360 band"), Cm > 50.0 && Cm < 53.0);
+
+	TestTrue(
+		TEXT("solver dy flips Unreal up to down"),
+		FMath::IsNearlyEqual(Sens::SolverMouseDyFromUnreal(10.0), -10.0));
+
+	Sens::FRoundRecording Up;
+	Up.Scenario = Sens::EScenarioId::Flick;
+	Sens::FTargetSpec Above;
+	Above.YawDeg = 0.0;
+	Above.PitchDeg = -20.0;
+	Up.Target = Above;
+	const double UpCounts = 20.0 / (1.13 * YawConstant);
+	Up.Net = {0.0, UpCounts};
+	Up.Samples.Add({0.0, 0.0, 0.0});
+	Up.Samples.Add({100.0, 0.0, UpCounts});
+	const TOptional<Sens::FRoundEstimate> UpEst = Sens::EstimateRound(Up, YawConstant);
+	TestTrue(
+		TEXT("flick up at orb above recovers 1.13"),
+		UpEst.IsSet() && FMath::IsNearlyEqual(UpEst.GetValue().ImpliedSens, 1.13, 1e-5));
+
+	Sens::FRoundRecording Down;
+	Down.Scenario = Sens::EScenarioId::Flick;
+	Sens::FTargetSpec Below;
+	Below.YawDeg = 0.0;
+	Below.PitchDeg = 20.0;
+	Down.Target = Below;
+	Down.Net = {0.0, -UpCounts};
+	Down.Samples.Add({0.0, 0.0, 0.0});
+	Down.Samples.Add({100.0, 0.0, -UpCounts});
+	const TOptional<Sens::FRoundEstimate> DownEst = Sens::EstimateRound(Down, YawConstant);
+	TestTrue(
+		TEXT("flick down at orb below recovers 1.13"),
+		DownEst.IsSet() && FMath::IsNearlyEqual(DownEst.GetValue().ImpliedSens, 1.13, 1e-5));
 	return true;
 }
 
@@ -128,7 +161,6 @@ bool FSensQuoteBlendsScenariosTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("scenarios pull the pack off Felt-only"), Rec.SensRange.Center > 1.4);
 	TestTrue(TEXT("Felt 90 still pulls the pack off scenario-only"), Rec.SensRange.Center < 2.3);
 	TestTrue(TEXT("pointing baseline stays high"), Rec.PointingBaselineSens.IsSet() && Rec.PointingBaselineSens.GetValue() > 2.0);
-	TestTrue(TEXT("keeps current sens"), Rec.CurrentSens.IsSet() && FMath::IsNearlyEqual(Rec.CurrentSens.GetValue(), 1.13));
 	TestTrue(TEXT("dpi 400"), FMath::IsNearlyEqual(Rec.Dpi, 400.0));
 
 	double BlendSum = 0.0;

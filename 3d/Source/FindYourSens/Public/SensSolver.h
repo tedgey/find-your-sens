@@ -6,6 +6,8 @@
 namespace Sens
 {
 TOptional<double> ImpliedSensitivity(double YawDeg, double PitchDeg, double MouseDx, double MouseDy, double YawConstant);
+/** Unreal Mouse2D +Y is up (CS2). Solver +Y is down (browser movementY). Negate before ImpliedSensitivity. */
+double SolverMouseDyFromUnreal(double UnrealMouseDy);
 TOptional<double> ImpliedSensFromFeelTurn(double FeelDeg, double MouseDx, double YawConstant);
 double RoundWeight(double Straightness, double LateCorrectionRatio);
 TOptional<FRoundEstimate> EstimateRound(const FRoundRecording& Round, double YawConstant);

@@ -101,6 +101,11 @@ TOptional<double> ImpliedSensitivity(
 	return Sens;
 }
 
+double SolverMouseDyFromUnreal(double UnrealMouseDy)
+{
+	return -UnrealMouseDy;
+}
+
 TOptional<double> ImpliedSensFromFeelTurn(double FeelDeg, double MouseDx, double YawConstant)
 {
 	const double Dx = FMath::Abs(MouseDx);
@@ -135,7 +140,12 @@ TOptional<FRoundEstimate> EstimateRound(const FRoundRecording& Round, double Yaw
 	else if (Round.Target.IsSet())
 	{
 		const FTargetSpec& Target = Round.Target.GetValue();
-		Sens = ImpliedSensitivity(Target.YawDeg, Target.PitchDeg, Round.Net.X, Round.Net.Y, YawConstant);
+		Sens = ImpliedSensitivity(
+			Target.YawDeg,
+			Target.PitchDeg,
+			Round.Net.X,
+			SolverMouseDyFromUnreal(Round.Net.Y),
+			YawConstant);
 	}
 	if (!Sens.IsSet())
 	{
