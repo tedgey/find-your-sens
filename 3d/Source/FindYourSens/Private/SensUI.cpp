@@ -11,6 +11,7 @@
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -96,6 +97,82 @@ FReply Click(ASensPlayerController* PC, void (ASensPlayerController::*Method)())
 	}
 	return FReply::Handled();
 }
+
+TSharedRef<SWidget> TableCell(const FString& Text, bool bHeader)
+{
+	return SNew(SBox).Padding(FMargin(0.f, 5.f, 24.f, 5.f))
+	[
+		Label(Text, bHeader ? Muted : Ink, bHeader ? 12 : 13, bHeader ? TEXT("Bold") : TEXT("Regular"))
+	];
+}
+
+TSharedRef<SWidget> CheckInFeelTable(const TArray<Sens::FCheckInStageSummary>& Rows)
+{
+	TSharedRef<SGridPanel> Grid = SNew(SGridPanel);
+	const FString Headers[] = {TEXT("Stage"), TEXT("Rounds"), TEXT("Median error")};
+	for (int32 C = 0; C < UE_ARRAY_COUNT(Headers); ++C)
+	{
+		Grid->AddSlot(C, 0)[TableCell(Headers[C], true)];
+	}
+	for (int32 R = 0; R < Rows.Num(); ++R)
+	{
+		const Sens::FCheckInStageSummary& Stage = Rows[R];
+		const FString Cells[] = {
+			Sens::ScenarioLabel(Stage.Scenario),
+			FString::FromInt(Stage.Rounds),
+			FString::Printf(TEXT("%.1f°"), Stage.MedianAbsErrorDeg),
+		};
+		for (int32 C = 0; C < UE_ARRAY_COUNT(Cells); ++C)
+		{
+			Grid->AddSlot(C, R + 1)[TableCell(Cells[C], false)];
+		}
+	}
+
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Felt 90°"), Accent, 13, TEXT("Bold"))]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[Grid];
+}
+
+TSharedRef<SWidget> CheckInMarkerTable(const TArray<Sens::FCheckInStageSummary>& Rows)
+{
+	TSharedRef<SGridPanel> Grid = SNew(SGridPanel);
+	const FString Headers[] = {
+		TEXT("Stage"),
+		TEXT("Rounds"),
+		TEXT("On-target"),
+		TEXT("Close"),
+		TEXT("Miss"),
+		TEXT("Overshoot"),
+		TEXT("Undershoot"),
+		TEXT("Median error"),
+	};
+	for (int32 C = 0; C < UE_ARRAY_COUNT(Headers); ++C)
+	{
+		Grid->AddSlot(C, 0)[TableCell(Headers[C], true)];
+	}
+	for (int32 R = 0; R < Rows.Num(); ++R)
+	{
+		const Sens::FCheckInStageSummary& Stage = Rows[R];
+		const FString Cells[] = {
+			Sens::ScenarioLabel(Stage.Scenario),
+			FString::FromInt(Stage.Rounds),
+			FString::FromInt(Stage.OnTarget),
+			FString::FromInt(Stage.Close),
+			FString::FromInt(Stage.Miss),
+			FString::FromInt(Stage.Overshoot),
+			FString::FromInt(Stage.Undershoot),
+			FString::Printf(TEXT("%.1f°"), Stage.MedianAbsErrorDeg),
+		};
+		for (int32 C = 0; C < UE_ARRAY_COUNT(Cells); ++C)
+		{
+			Grid->AddSlot(C, R + 1)[TableCell(Cells[C], false)];
+		}
+	}
+
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Markers"), Accent, 13, TEXT("Bold"))]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[Grid];
+}
 } // namespace
 
 class SSensSetup : public SCompoundWidget
@@ -138,9 +215,20 @@ public:
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
 					[
-						Btn(TEXT("How it works"), true, FOnClicked::CreateLambda([this]() {
-							return Click(PC.Get(), &ASensPlayerController::HandleOpenInfo);
-						}))
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 10, 0)
+						[
+							Btn(TEXT("How it works"), true, FOnClicked::CreateLambda([this]() {
+								return Click(PC.Get(), &ASensPlayerController::HandleOpenInfo);
+							}))
+						]
+						+ SHorizontalBox::Slot().AutoWidth()
+						[
+							Btn(TEXT("Test a sensitivity"), true, FOnClicked::CreateLambda([this]() {
+								CommitSetupToSession();
+								return Click(PC.Get(), &ASensPlayerController::HandleOpenCheckIn);
+							}))
+						]
 					]
 				]
 				+ SHorizontalBox::Slot().FillWidth(1.1f).VAlign(VAlign_Center)
@@ -166,25 +254,7 @@ public:
 					+ SVerticalBox::Slot().AutoHeight().Padding(0, 18, 0, 0)
 					[
 						Btn(TEXT("Continue"), false, FOnClicked::CreateLambda([this]() {
-							if (USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr)
-							{
-								S->Setup.Dpi = FCString::Atod(*DpiText.ToString());
-								if (S->Setup.Dpi < 100.0)
-								{
-									S->Setup.Dpi = 400.0;
-								}
-								S->Setup.ResolutionWidth = FMath::Max(800, FCString::Atoi(*ResWText.ToString()));
-								S->Setup.ResolutionHeight = FMath::Max(600, FCString::Atoi(*ResHText.ToString()));
-								S->Setup.CurrentSens.Reset();
-								const FString FovRaw = FovText.ToString().TrimStartAndEnd();
-								S->Setup.FovSetting.Reset();
-								if (!FovRaw.IsEmpty())
-								{
-									S->Setup.FovSetting = FCString::Atod(*FovRaw);
-								}
-								S->Setup.GameId = Sens::EGameId::CS2;
-								S->Setup.bCaptureIsRaw = true;
-							}
+							CommitSetupToSession();
 							return Click(PC.Get(), &ASensPlayerController::HandleSetupContinue);
 						}))
 					]
@@ -194,6 +264,31 @@ public:
 	}
 
 private:
+	void CommitSetupToSession()
+	{
+		USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr;
+		if (!S)
+		{
+			return;
+		}
+		S->Setup.Dpi = FCString::Atod(*DpiText.ToString());
+		if (S->Setup.Dpi < 100.0)
+		{
+			S->Setup.Dpi = 400.0;
+		}
+		S->Setup.ResolutionWidth = FMath::Max(800, FCString::Atoi(*ResWText.ToString()));
+		S->Setup.ResolutionHeight = FMath::Max(600, FCString::Atoi(*ResHText.ToString()));
+		S->Setup.CurrentSens.Reset();
+		const FString FovRaw = FovText.ToString().TrimStartAndEnd();
+		S->Setup.FovSetting.Reset();
+		if (!FovRaw.IsEmpty())
+		{
+			S->Setup.FovSetting = FCString::Atod(*FovRaw);
+		}
+		S->Setup.GameId = Sens::EGameId::CS2;
+		S->Setup.bCaptureIsRaw = true;
+	}
+
 	TWeakObjectPtr<ASensPlayerController> PC;
 	FText DpiText;
 	FText ResWText;
@@ -497,7 +592,8 @@ public:
 	{
 		PC = InPC;
 		USensSession* S = PC.IsValid() ? PC->GetSession() : nullptr;
-		if (S && S->Recommendation.IsSet())
+		const bool bHasPack = S && S->Recommendation.IsSet();
+		if (bHasPack)
 		{
 			const Sens::FSensRange& Range = S->Recommendation->SensRange;
 			Low = Range.Low;
@@ -512,14 +608,28 @@ public:
 			}
 			SensValue = S->CheckInSens;
 		}
+		else if (S)
+		{
+			Low = 0.2;
+			High = 3.0;
+			if (S->CheckInSens <= 0.0)
+			{
+				S->CheckInSens = 1.0;
+			}
+			SensValue = S->CheckInSens;
+		}
 		SensText = FText::FromString(FString::Printf(TEXT("%.3f"), SensValue));
 
 		const Sens::FGameProfile& Game = Sens::GetGame(S ? S->Setup.GameId : Sens::EGameId::CS2);
-		const FString Band = FString::Printf(TEXT("%.3f - %.3f"), Low, High);
-		const FString Lede = FString::Printf(
-			TEXT("Your pack quoted %s (center %.3f). The slider stays in that band. Type a number to try something outside it. Live look uses this sensitivity; the pack does not change."),
-			*Band,
-			S && S->Recommendation.IsSet() ? S->Recommendation->SensRange.Center : SensValue);
+		const FString Lede = bHasPack
+			? FString::Printf(
+				TEXT("Your pack quoted %.3f - %.3f (center %.3f). The slider stays in that band. Type a number to try something outside it. Live look uses this sensitivity; the pack does not change."),
+				Low,
+				High,
+				S->Recommendation->SensRange.Center)
+			: TEXT("Enter a sensitivity to try with live look. Use this to re-run check-in for a number you already have. This does not quote a pack.");
+
+		const FString BackLabel = bHasPack ? TEXT("Back to pack") : TEXT("Back");
 
 		ChildSlot
 		[
@@ -553,7 +663,7 @@ public:
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 10, 0)
-					[Btn(TEXT("Back to pack"), true, FOnClicked::CreateLambda([this]() {
+					[Btn(BackLabel, true, FOnClicked::CreateLambda([this]() {
 						return Click(PC.Get(), &ASensPlayerController::HandleBackToPackResults);
 					}))]
 					+ SHorizontalBox::Slot().AutoWidth()
@@ -665,26 +775,29 @@ TSharedRef<SWidget> MakeSensCheckInResultsWidget(ASensPlayerController* PC)
 		HitHeadline = FString::Printf(TEXT("%d on-target · %d close · %d miss"), OnTarget, Close, Miss);
 	}
 
-	TSharedRef<SVerticalBox> Stages = SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight()[Label(TEXT("Per scenario"), Accent, 13, TEXT("Bold"))];
+	TArray<Sens::FCheckInStageSummary> FeelRows;
+	TArray<Sens::FCheckInStageSummary> MarkerRows;
 	for (const Sens::FCheckInStageSummary& Stage : Report.Stages)
 	{
-		const FString StageLine = FString::Printf(
-			TEXT("%s   %d on-target  ·  %d close  ·  %d miss  ·  overshoot %d / undershoot %d  ·  med %.1f°"),
-			*Sens::ScenarioLabel(Stage.Scenario),
-			Stage.OnTarget,
-			Stage.Close,
-			Stage.Miss,
-			Stage.Overshoot,
-			Stage.Undershoot,
-			Stage.MedianAbsErrorDeg);
-		Stages->AddSlot().AutoHeight().Padding(0, 6, 0, 0)[Label(StageLine, Ink, 13)];
+		if (Stage.Scenario == Sens::EScenarioId::Feel90)
+		{
+			FeelRows.Add(Stage);
+		}
+		else
+		{
+			MarkerRows.Add(Stage);
+		}
 	}
 
-	TSharedRef<SVerticalBox> Notes = SNew(SVerticalBox);
-	for (const FString& Note : Report.Notes)
+	TSharedRef<SVerticalBox> Tables = SNew(SVerticalBox);
+	if (FeelRows.Num() > 0)
 	{
-		Notes->AddSlot().AutoHeight().Padding(0, 0, 0, 8)[Label(Note, Ink, 13)];
+		Tables->AddSlot().AutoHeight()[CheckInFeelTable(FeelRows)];
+	}
+	if (MarkerRows.Num() > 0)
+	{
+		Tables->AddSlot().AutoHeight().Padding(0, FeelRows.Num() > 0 ? 20.f : 0.f, 0, 0)
+		[CheckInMarkerTable(MarkerRows)];
 	}
 
 	return SNew(SBorder).Padding(28.f).BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox")).BorderBackgroundColor(Surface)
@@ -719,8 +832,7 @@ TSharedRef<SWidget> MakeSensCheckInResultsWidget(ASensPlayerController* PC)
 		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0, 16, 0, 0)
 		[
 			SNew(SScrollBox)
-			+ SScrollBox::Slot()[Stages]
-			+ SScrollBox::Slot().Padding(0, 16, 0, 0)[Notes]
+			+ SScrollBox::Slot()[Tables]
 		]
 	];
 }
